@@ -17,10 +17,12 @@ import numpy as np
 import onnx
 from onnx import TensorProto
 
-ONNX = '/home/ubs/uchat/onnx/reranker/reranker.onnx'
-DATA = '/home/ubs/uchat/onnx/reranker/reranker.onnx.data'
-OUT = '/home/ubs/uchat/onnx/reranker/reranker_fp16.onnx'
-OUTDATA = '/home/ubs/uchat/onnx/reranker/reranker_fp16.onnx.data'
+BASE = os.environ.get('NYUCHAT_HOME', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+P = os.path.join(BASE, 'onnx', 'reranker')
+ONNX = os.path.join(P, 'reranker.onnx')
+DATA = os.path.join(P, 'reranker.onnx.data')
+OUT = os.path.join(P, 'reranker_fp16.onnx')
+OUTDATA = os.path.join(P, 'reranker_fp16.onnx.data')
 
 DT_FLOAT = 1
 DT_FLOAT16 = 10
@@ -85,7 +87,14 @@ def main():
 
     print(f'converted {converted} tensors', flush=True)
 
-    # remove inline raw_data on external tensors (offsets now describe the blob)
+    # ONNX export declares every graph value as float32; the initializer is now
+    # float16 so every downstream node input/output must be retyped or
+    # onnxruntime rejects the load ("does not match expected type").
+    from onnx import TensorProto as TP
+    for vi in list(m.graph.input) + list(m.graph.output) + list(m.graph.value_info):
+        if vi.type.tensor_type.elem_type == TP.FLOAT:
+            vi.type.tensor_type.elem_type = TP.FLOAT16
+
     onnx.save_model(m, OUT, save_as_external_data=False)
     dst.close()
     srcmm.close()

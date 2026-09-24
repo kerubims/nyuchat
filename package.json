@@ -11,9 +11,10 @@
     "db:studio": "prisma studio",
     "fetch:models": "bash scripts/fetch_bge_m3.sh onnx/embedder",
     "build:reranker": "python3 scripts/build_reranker_onnx.py",
-    "to:fp16": "python3 scripts/to_fp16.py",
+    "to:fp16": "python3 scripts/to_fp16_stream.py",
     "e2e": "bash scripts/http_e2e.sh",
-    "e2e:nsfw": "bash scripts/http_nsfw.sh"
+    "e2e:nsfw": "bash scripts/http_nsfw.sh",
+    "fetch:reranker": "bash scripts/fetch_reranker.sh onnx/reranker"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
