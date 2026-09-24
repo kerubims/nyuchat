@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { MODEL_ID } from '@/lib/memory';
 
 export async function POST(req: Request) {
   try {
@@ -28,17 +29,19 @@ Output ONLY valid JSON matching this exact structure:
   "example_dialogue": "User: \\"...\\"\\nCharacter: *...* \\"...\\""
 }`;
 
+    const authHeader = 'Bearer ' + novitaKey;
+
     const res = await fetch('https://api.novita.ai/v3/openai/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${novitaKey}`,
+        Authorization: authHeader,
       },
       body: JSON.stringify({
-        model: 'mistralai/mistral-nemo-instruct-2407',
+        model: MODEL_ID,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Create character persona for: ${prompt}` },
+          { role: 'user', content: 'Create character persona for: ' + prompt },
         ],
         temperature: 0.7,
         response_format: { type: 'json_object' },
