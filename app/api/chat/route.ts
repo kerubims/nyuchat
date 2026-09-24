@@ -6,10 +6,11 @@ import { extractAndStoreFacts, directorLine, MODEL_ID } from '@/lib/memory';
 const NOVITA_URL = 'https://api.novita.ai/v3/openai/chat/completions';
 
 export async function POST(req: Request) {
-  const { sessionId, message, temperature = 0.8 } = (await req.json()) as {
+  const { sessionId, message, temperature = 0.8, editMessageId } = (await req.json()) as {
     sessionId?: string;
     message?: string;
     temperature?: number;
+    editMessageId?: string;
   };
   if (!sessionId || !message?.trim()) {
     return Response.json({ error: 'sessionId and message required' }, { status: 400 });
@@ -21,13 +22,28 @@ export async function POST(req: Request) {
   });
   if (!session) return Response.json({ error: 'session not found' }, { status: 404 });
 
+  // If editing an existing message, truncate old messages starting from that message onward in the database
+  if (editMessageId) {
+    const targetMsg = await prisma.chatMessage.findUnique({
+      where: { id: editMessageId },
+    });
+    if (targetMsg && targetMsg.chat_session_id === sessionId) {
+      await prisma.chatMessage.deleteMany({
+        where: {
+          chat_session_id: sessionId,
+          created_at: { gte: targetMsg.created_at },
+        },
+      });
+    }
+  }
+
   const user = await prisma.userProfile.findFirst();
   const profile = {
     name: user?.display_name ?? 'User',
     persona: user?.persona ?? 'Unknown user.',
   };
 
-  // Persist the (already English) user message before generation.
+  // Persist the edited/new user message before generation.
   await prisma.chatMessage.create({
     data: { chat_session_id: sessionId, sender: 'user', content: message },
   });

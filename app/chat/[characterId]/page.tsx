@@ -212,14 +212,14 @@ export default function DedicatedChatRoom() {
   const handleSendMessage = async (text: string) => {
     if (!activeSessionId || !text.trim() || streaming) return;
 
+    let currentEditId: string | null = null;
     if (editingMessageId) {
-      const msgId = editingMessageId;
+      currentEditId = editingMessageId;
       setEditingMessageId(null);
-      // Remove messages after edited message
-      const targetIndex = messages.findIndex((m) => m.id === msgId);
+      // Truncate client messages up to edited message
+      const targetIndex = messages.findIndex((m) => m.id === currentEditId);
       if (targetIndex !== -1) {
-        const updated = messages.slice(0, targetIndex);
-        setMessages(updated);
+        setMessages(messages.slice(0, targetIndex));
       }
     }
 
@@ -230,7 +230,12 @@ export default function DedicatedChatRoom() {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: activeSessionId, message: content, temperature }),
+      body: JSON.stringify({
+        sessionId: activeSessionId,
+        message: content,
+        temperature,
+        editMessageId: currentEditId || undefined,
+      }),
     });
 
     if (!res.ok) {
