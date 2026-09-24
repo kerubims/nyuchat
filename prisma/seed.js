@@ -1,47 +1,30 @@
-import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool, PoolConfig } from 'pg';
-import fs from 'node:fs';
-import path from 'node:path';
+const { PrismaClient } = require('@prisma/client');
+const { PrismaPg } = require('@prisma/adapter-pg');
+const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
 
-let poolConfig: PoolConfig = {
+const pool = new Pool({
   host: process.env.PGHOST || 'shared-postgres',
   port: Number(process.env.PGPORT || 5432),
   user: process.env.PGUSER || 'postgres',
   password: process.env.PGPASSWORD || 'shared_postgres_secret_2026',
   database: process.env.PGDATABASE || 'nyuchat',
-};
+});
 
-if (process.env.DATABASE_URL) {
-  try {
-    const parsed = new URL(process.env.DATABASE_URL);
-    poolConfig = {
-      host: parsed.hostname || poolConfig.host,
-      port: parsed.port ? Number(parsed.port) : poolConfig.port,
-      user: parsed.username ? decodeURIComponent(parsed.username) : poolConfig.user,
-      password: parsed.password ? decodeURIComponent(parsed.password) : poolConfig.password,
-      database: parsed.pathname ? parsed.pathname.replace(/^\//, '') : poolConfig.database,
-    };
-  } catch {
-    poolConfig = { connectionString: process.env.DATABASE_URL };
-  }
-}
-
-const pool = new Pool(poolConfig);
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
 const characters = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), 'prisma/data/characters.json'), 'utf8')
-) as Record<string, string>[];
+);
 
 async function main() {
-  const existing = await prisma.character.deleteMany({});
-  console.log(`cleared ${existing.count} characters`);
-
+  await prisma.character.deleteMany({});
   let created = 0;
   for (const c of characters) {
     await prisma.character.create({
       data: {
+        id: c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         name: c.name,
         avatar_url: c.avatar_url ?? null,
         gender: c.gender ?? 'Not specified',
@@ -69,16 +52,11 @@ async function main() {
       response_style: 'Short, casual messages. Often uses action tags to describe actions instead of words.',
     },
   });
-  console.log('seeded: default UserProfile');
-
-  console.log(`done — ${created} characters`);
+  console.log(`done — seeded ${created} characters`);
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
+  .catch(console.error)
   .finally(async () => {
     await prisma.$disconnect();
     await pool.end();

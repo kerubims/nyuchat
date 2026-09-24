@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -11,16 +11,15 @@ RUN npm ci
 
 # Copy project source
 COPY . .
+RUN mkdir -p public
 
-# Fetch local models (onnx/ is gitignored: ~4.5GB total).
-# Embedder + reranker are direct downloads; the reranker is then converted to
-# fp16 (fp32 costs ~5s/pair on CPU). Set SKIP_MODELS=1 to build without RAG.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      curl ca-certificates python3 python3-numpy \
-    && rm -rf /var/lib/apt/lists/*
+ARG SKIP_MODELS=""
 
 RUN if [ -z "$SKIP_MODELS" ]; then \
-      bash scripts/fetch_bge_m3.sh onnx/embedder \
+      apt-get update && apt-get install -y --no-install-recommends \
+        curl ca-certificates python3 python3-numpy python3-pip \
+      && rm -rf /var/lib/apt/lists/* \
+      && bash scripts/fetch_bge_m3.sh onnx/embedder \
       && bash scripts/fetch_reranker.sh onnx/reranker \
       && pip3 install --no-cache-dir --break-system-packages onnx \
       && python3 scripts/to_fp16_stream.py; \
@@ -32,7 +31,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # Production runner image
-FROM node:20-alpine AS runner
+FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -40,6 +39,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
+
+RUN mkdir -p public
 
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
