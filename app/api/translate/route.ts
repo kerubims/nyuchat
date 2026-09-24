@@ -1,19 +1,20 @@
 import { translate } from '@vitalets/google-translate-api';
 
-// PRD §2: Client-Side Ephemeral UI Translation. This endpoint only feeds the
-// draft-preview box — nothing it returns is ever stored.
+// PRD §2: Client-Side Ephemeral UI Translation.
 export async function POST(req: Request) {
-  const { text } = (await req.json()) as { text?: string };
+  const { text, to = 'id', from } = (await req.json()) as { text?: string; to?: string; from?: string };
   if (!text || !text.trim()) {
     return Response.json({ error: 'text required' }, { status: 400 });
   }
 
   try {
-    const res = await translate(text.trim(), { to: 'en' });
+    const opts: { to: string; from?: string } = { to };
+    if (from) opts.from = from;
+    const res = await translate(text.trim(), opts);
     return Response.json({
       source: text.trim(),
       translation: res.text,
-      detected: (res as { from?: { language?: { iso?: string } } }).from?.language?.iso ?? 'id',
+      detected: (res as { from?: { language?: { iso?: string } } }).from?.language?.iso ?? 'en',
     });
   } catch (e) {
     return Response.json(

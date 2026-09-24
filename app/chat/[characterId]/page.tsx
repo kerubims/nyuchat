@@ -68,7 +68,7 @@ export default function DedicatedChatRoom() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
 
-  // Settings
+  // Settings (temperature passed to backend AI completions)
   const [temperature, setTemperature] = useState<number>(0.8);
 
   // Editing state
@@ -227,7 +227,7 @@ export default function DedicatedChatRoom() {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: activeSessionId, message: content, temperature, model: 'stheno' }),
+      body: JSON.stringify({ sessionId: activeSessionId, message: content, temperature }),
     });
 
     if (!res.ok) {
@@ -315,8 +315,8 @@ export default function DedicatedChatRoom() {
 
       {/* Main Workspace */}
       <section className="flex-1 flex flex-col min-h-0 relative">
-        {/* Header Bar */}
-        <header className="h-14 px-4 md:px-6 border-b border-zinc-900 flex items-center justify-between shrink-0 bg-zinc-950/80 backdrop-blur-sm z-10">
+        {/* Header Bar - Fixed Sticky at Top */}
+        <header className="sticky top-0 z-30 h-14 px-4 md:px-6 border-b border-zinc-900 flex items-center justify-between shrink-0 bg-zinc-950/95 backdrop-blur-md">
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setSidebarOpen(true)}

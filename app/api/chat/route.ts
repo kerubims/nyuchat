@@ -6,7 +6,11 @@ import { extractAndStoreFacts, directorLine, MODEL_ID } from '@/lib/memory';
 const NOVITA_URL = 'https://api.novita.ai/v3/openai/chat/completions';
 
 export async function POST(req: Request) {
-  const { sessionId, message } = (await req.json()) as { sessionId?: string; message?: string };
+  const { sessionId, message, temperature = 0.8 } = (await req.json()) as {
+    sessionId?: string;
+    message?: string;
+    temperature?: number;
+  };
   if (!sessionId || !message?.trim()) {
     return Response.json({ error: 'sessionId and message required' }, { status: 400 });
   }
@@ -47,8 +51,6 @@ export async function POST(req: Request) {
   if (!key) return Response.json({ error: 'NOVITA_API_KEY not set' }, { status: 500 });
 
   // Director mode: the user cued a third character without writing dialogue.
-  // Generate that character's line first (Stheno 8B can't do both in one call),
-  // let Vey react to it, and surface both to the client.
   const directorLineText = ctx.director ? await directorLine(message) : '';
   if (directorLineText) {
     ctx.messages.push({ role: 'user', content: `${message} ${directorLineText}` });
@@ -69,7 +71,7 @@ export async function POST(req: Request) {
           body: JSON.stringify({
             model: MODEL_ID,
             messages: [{ role: 'system', content: ctx.system }, ...ctx.messages],
-            temperature: 0.8,
+            temperature: typeof temperature === 'number' ? Math.max(0.1, Math.min(1.5, temperature)) : 0.8,
             top_p: 0.95,
             max_tokens: ctx.director ? 100 : 320,
             stream: true,

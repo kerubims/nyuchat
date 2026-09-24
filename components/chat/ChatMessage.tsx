@@ -55,7 +55,7 @@ export function ChatMessage({
       const res = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: content, from: 'en', to: 'id' }),
+        body: JSON.stringify({ text: content, to: 'id', from: 'en' }),
       });
       const data = await res.json();
       if (data.translation) {
@@ -74,22 +74,21 @@ export function ChatMessage({
   if (role === 'user') {
     return (
       <div className="flex justify-end my-2">
-        <div className="max-w-[88%] sm:max-w-[80%] flex flex-col items-end gap-1.5">
-          <div className="rounded-2xl bg-zinc-100 text-zinc-950 px-4 py-3 text-[14px] leading-relaxed font-medium shadow-sm">
-            <div className="whitespace-pre-wrap">{formatContent(content)}</div>
-          </div>
-
-          {/* High-contrast Edit Button placed below user bubble (no overflow) */}
+        <div className="max-w-[88%] sm:max-w-[80%] flex items-end gap-1.5">
+          {/* Icon ONLY Edit Button matching user bubble style */}
           {!isStreaming && onEdit && (
             <button
               onClick={() => onEdit(id, content)}
-              className="px-2.5 py-1 rounded-lg bg-amber-950/60 border border-amber-700/80 text-amber-300 hover:bg-amber-900 hover:text-white transition-colors text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+              className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors shrink-0 shadow-sm"
               title="Edit message"
             >
               <PencilSimple size={14} weight="bold" />
-              <span>Edit</span>
             </button>
           )}
+
+          <div className="rounded-2xl bg-zinc-100 text-zinc-950 px-4 py-3 text-[14px] leading-relaxed font-medium shadow-sm">
+            <div className="whitespace-pre-wrap">{formatContent(content)}</div>
+          </div>
         </div>
       </div>
     );
@@ -124,7 +123,7 @@ export function ChatMessage({
 
           {/* Translated sub-box */}
           {showTranslation && translatedText && (
-            <div className="pt-2 border-t border-zinc-800 text-[13px] text-emerald-300 bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-900/60 space-y-1">
+            <div className="pt-2 border-t border-zinc-800 text-[13px] text-emerald-300 bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-900/60 space-y-1">
               <span className="block text-[10px] font-mono text-emerald-400 uppercase tracking-wider font-bold">
                 Terjemahan Bahasa Indonesia:
               </span>
@@ -133,25 +132,25 @@ export function ChatMessage({
           )}
         </div>
 
-        {/* High-contrast Action Buttons placed neatly underneath Assistant bubble (NO RIGHT OVERFLOW!) */}
+        {/* Icon ONLY Action Buttons underneath Assistant bubble matching bubble colors */}
         {!isStreaming && (
-          <div className="flex items-center gap-2 pt-0.5">
+          <div className="flex items-center gap-1 pt-0.5">
             <button
               onClick={handleTranslate}
               disabled={isTranslating}
-              className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-700/80 text-cyan-300 hover:bg-cyan-900 hover:text-white transition-colors text-xs font-semibold flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors shadow-sm disabled:opacity-50"
+              title={showTranslation ? 'Tampilkan Teks Asli' : 'Terjemahkan ke Bahasa Indonesia'}
             >
               <Translate size={14} weight="bold" className={isTranslating ? 'animate-spin' : ''} />
-              <span>{showTranslation ? 'Original' : 'Translate'}</span>
             </button>
 
             {onRegenerate && (
               <button
                 onClick={() => onRegenerate(id)}
-                className="px-2.5 py-1 rounded-lg bg-purple-950/60 border border-purple-700/80 text-purple-300 hover:bg-purple-900 hover:text-white transition-colors text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+                className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors shadow-sm"
+                title="Regenerate Balasan"
               >
                 <ArrowClockwise size={14} weight="bold" />
-                <span>Regenerate</span>
               </button>
             )}
           </div>
