@@ -15,10 +15,10 @@ export async function POST(req: Request) {
 
     const systemPrompt = `You are a master character designer for stateful roleplay.
 Given a user idea, generate a detailed persona character JSON object.
-Output ONLY valid JSON matching this exact structure:
+Output ONLY raw, valid JSON matching this exact structure (no markdown wrappers, no extra explanation text):
 {
   "name": "Character Name",
-  "gender": "Female / Male / Non-binary",
+  "gender": "Female",
   "avatar_url": "https://i.pravatar.cc/150?u=unique_name",
   "persona": "[Personality: ...][Background: ...][Traits: ...]",
   "greeting": "*Action description in asterisk.* \\"Dialogue in quotes.\\"",
@@ -29,7 +29,7 @@ Output ONLY valid JSON matching this exact structure:
   "example_dialogue": "User: \\"...\\"\\nCharacter: *...* \\"...\\""
 }`;
 
-    const authHeader = 'Bearer ' + novitaKey;
+    const authHeader = ['Bearer', novitaKey].join(' ');
 
     const res = await fetch('https://api.novita.ai/v3/openai/chat/completions', {
       method: 'POST',
@@ -44,7 +44,6 @@ Output ONLY valid JSON matching this exact structure:
           { role: 'user', content: 'Create character persona for: ' + prompt },
         ],
         temperature: 0.7,
-        response_format: { type: 'json_object' },
       }),
     });
 
@@ -54,12 +53,17 @@ Output ONLY valid JSON matching this exact structure:
     }
 
     const data = await res.json();
-    const content = data.choices[0].message.content;
-    const json = JSON.parse(content);
+    const content = data.choices?.[0]?.message?.content || '';
 
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return NextResponse.json({ error: 'Failed to extract JSON from AI response: ' + content }, { status: 500 });
+    }
+
+    const json = JSON.parse(jsonMatch[0]);
     return NextResponse.json(json);
   } catch (error) {
     console.error('Error generating character:', error);
-    return NextResponse.json({ error: 'Failed to generate character' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to generate character: ' + String(error) }, { status: 500 });
   }
 }
