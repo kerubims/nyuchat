@@ -6,14 +6,15 @@ import { extractAndStoreFacts, directorLine, MODEL_ID } from '@/lib/memory';
 const NOVITA_URL = 'https://api.novita.ai/v3/openai/chat/completions';
 
 export async function POST(req: Request) {
-  const { sessionId, message, temperature = 0.8, editMessageId } = (await req.json()) as {
+  const { sessionId, message, temperature = 0.8, editMessageId, regenerateMessageId } = (await req.json()) as {
     sessionId?: string;
     message?: string;
     temperature?: number;
     editMessageId?: string;
+    regenerateMessageId?: string;
   };
-  if (!sessionId || !message?.trim()) {
-    return Response.json({ error: 'sessionId and message required' }, { status: 400 });
+  if (!sessionId) {
+    return Response.json({ error: 'sessionId required' }, { status: 400 });
   }
 
   const session = await prisma.chatSession.findUnique({
@@ -22,8 +23,37 @@ export async function POST(req: Request) {
   });
   if (!session) return Response.json({ error: 'session not found' }, { status: 404 });
 
-  // If editing an existing message, truncate old messages starting from that message onward in the database
-  if (editMessageId) {
+  let userInput = message?.trim() || '';
+
+  // Case A: Regenerating an assistant response
+  if (regenerateMessageId) {
+    const targetMsg = await prisma.chatMessage.findUnique({
+      where: { id: regenerateMessageId },
+    });
+    if (targetMsg && targetMsg.chat_session_id === sessionId) {
+      // Delete target assistant message and any subsequent messages
+      await prisma.chatMessage.deleteMany({
+        where: {
+          chat_session_id: sessionId,
+          created_at: { gte: targetMsg.created_at },
+        },
+      });
+    }
+    // Retrieve the last user message content to trigger generation
+    const lastUserMsg = await prisma.chatMessage.findFirst({
+      where: { chat_session_id: sessionId, sender: 'user' },
+      orderBy: { created_at: 'desc' },
+    });
+    if (!lastUserMsg) {
+      return Response.json({ error: 'No preceding user message to regenerate' }, { status: 400 });
+    }
+    userInput = lastUserMsg.content;
+  }
+  // Case B: Editing an existing user message
+  else if (editMessageId) {
+    if (!userInput) {
+      return Response.json({ error: 'message required' }, { status: 400 });
+    }
     const targetMsg = await prisma.chatMessage.findUnique({
       where: { id: editMessageId },
     });
@@ -35,6 +65,20 @@ export async function POST(req: Request) {
         },
       });
     }
+    // Persist edited user message
+    await prisma.chatMessage.create({
+      data: { chat_session_id: sessionId, sender: 'user', content: userInput },
+    });
+  }
+  // Case C: Normal new user message
+  else {
+    if (!userInput) {
+      return Response.json({ error: 'message required' }, { status: 400 });
+    }
+    // Persist new user message
+    await prisma.chatMessage.create({
+      data: { chat_session_id: sessionId, sender: 'user', content: userInput },
+    });
   }
 
   const user = await prisma.userProfile.findFirst();
@@ -42,11 +86,6 @@ export async function POST(req: Request) {
     name: user?.display_name ?? 'User',
     persona: user?.persona ?? 'Unknown user.',
   };
-
-  // Persist the edited/new user message before generation.
-  await prisma.chatMessage.create({
-    data: { chat_session_id: sessionId, sender: 'user', content: message },
-  });
 
   // Background: mine durable facts from the user's side of the conversation.
   const recentUser = await prisma.chatMessage.findMany({
@@ -60,16 +99,16 @@ export async function POST(req: Request) {
     sessionId,
     character: session.character,
     user: profile,
-    userInput: message,
+    userInput,
   });
 
   const key = process.env.NOVITA_API_KEY;
   if (!key) return Response.json({ error: 'NOVITA_API_KEY not set' }, { status: 500 });
 
   // Director mode: the user cued a third character without writing dialogue.
-  const directorLineText = ctx.director ? await directorLine(message) : '';
+  const directorLineText = ctx.director ? await directorLine(userInput) : '';
   if (directorLineText) {
-    ctx.messages.push({ role: 'user', content: `${message} ${directorLineText}` });
+    ctx.messages.push({ role: 'user', content: `${userInput} ${directorLineText}` });
   }
 
   const encoder = new TextEncoder();
@@ -117,9 +156,9 @@ export async function POST(req: Request) {
             const payload = s.slice(5).trim();
             if (payload === '[DONE]') continue;
             try {
-              const j = JSON.parse(payload) as {
+              const j: {
                 choices?: { delta?: { content?: string }; finish_reason?: string }[];
-              };
+              } = JSON.parse(payload);
               const delta = j.choices?.[0]?.delta?.content;
               if (delta) {
                 full += delta;

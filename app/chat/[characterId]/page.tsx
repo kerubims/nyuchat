@@ -277,15 +277,61 @@ export default function DedicatedChatRoom() {
     setStreaming(false);
   };
 
-  const handleRegenerate = async (messageId: string) => {
-    const targetIndex = messages.findIndex((m) => m.id === messageId);
-    if (targetIndex === -1 || streaming) return;
+  const handleRegenerate = async (assistantMessageId: string) => {
+    const targetIndex = messages.findIndex((m) => m.id === assistantMessageId);
+    if (targetIndex === -1 || streaming || !activeSessionId) return;
 
-    const previousUserMsg = messages.slice(0, targetIndex).reverse().find((m) => m.sender === 'user');
-    if (!previousUserMsg) return;
+    // Truncate the assistant message from UI state
+    setMessages((m) => m.slice(0, targetIndex));
+    setStreaming(true);
 
-    setMessages(messages.slice(0, targetIndex));
-    await handleSendMessage(previousUserMsg.content);
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: activeSessionId,
+        regenerateMessageId: assistantMessageId,
+        temperature,
+      }),
+    });
+
+    if (!res.ok) {
+      setStreaming(false);
+      return;
+    }
+
+    const reader = res.body!.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let acc = '';
+    const id = crypto.randomUUID();
+
+    setMessages((m) => [...m, { id, sender: 'assistant', content: '', isStreaming: true, isRegenerating: true }]);
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines) {
+        const payload = line.replace(/^data:\s*/, '').trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const j: { token?: string; error?: string } = JSON.parse(payload);
+          if (j.error) {
+            setMessages((m) => m.map((x) => (x.id === id ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false, isRegenerating: false } : x)));
+          } else if (j.token) {
+            acc += j.token;
+            setMessages((m) => m.map((x) => (x.id === id ? { ...x, content: acc } : x)));
+          }
+        } catch {
+          /* keepalive */
+        }
+      }
+    }
+    setMessages((m) => m.map((x) => (x.id === id ? { ...x, isStreaming: false, isRegenerating: false } : x)));
+    setStreaming(false);
   };
 
   const handleEditRequest = (messageId: string, content: string) => {
