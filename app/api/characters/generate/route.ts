@@ -15,19 +15,19 @@ export async function POST(req: Request) {
 
     const systemPrompt = `You are a master character designer for stateful roleplay.
 Given a user idea, generate a detailed persona character JSON object.
-CRITICAL: Use single quotes ('...') for internal dialogue or quotes inside strings to maintain strictly valid JSON.
-Output ONLY raw, valid JSON matching this exact structure:
+CRITICAL: Output ONLY valid single-line JSON strings with no unescaped newlines.
+Output structure:
 {
   "name": "Character Name",
   "gender": "Female",
   "avatar_url": "https://i.pravatar.cc/150?u=unique_name",
-  "persona": "[Personality: ...][Background: ...][Traits: ...]",
-  "greeting": "*Action description in asterisk.* 'Dialogue in single quotes.'",
-  "backstory": "Detailed backstory...",
-  "key_memories": "- Memory point 1\\n- Memory point 2",
-  "scenario": "Setting and environment scenario...",
-  "response_directives": "- Directive 1\\n- Directive 2",
-  "example_dialogue": "User: '...'\\nCharacter: *...* '...'"
+  "persona": "[Personality: ...][Background: ...]",
+  "greeting": "*Action* 'Dialogue'",
+  "backstory": "Backstory...",
+  "key_memories": "Key memories...",
+  "scenario": "Scenario...",
+  "response_directives": "Directives...",
+  "example_dialogue": "Example dialogue..."
 }`;
 
     const authHeader = ['Bearer', novitaKey].join(' ');
@@ -54,39 +54,51 @@ Output ONLY raw, valid JSON matching this exact structure:
     }
 
     const data = await res.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    const content: string = data.choices?.[0]?.message?.content || '';
 
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json({ error: 'Failed to extract JSON from AI response: ' + content }, { status: 500 });
-    }
+    // Sanitize control newlines inside quotes
+    const sanitized = content.replace(/[\r\n]+/g, ' ');
 
-    const jsonStr = jsonMatch[0];
-    try {
-      const json = JSON.parse(jsonStr);
-      return NextResponse.json(json);
-    } catch {
-      const safeNameMatch = content.match(/"name":\s*"([^"]+)"/);
-      const safeGenderMatch = content.match(/"gender":\s*"([^"]+)"/);
-      const safePersonaMatch = content.match(/"persona":\s*"([^"]+)"/);
-      const safeGreetingMatch = content.match(/"greeting":\s*"([^"]+)"/);
-
-      if (safeNameMatch && safePersonaMatch && safeGreetingMatch) {
-        return NextResponse.json({
-          name: safeNameMatch[1],
-          gender: safeGenderMatch ? safeGenderMatch[1] : 'Female',
-          avatar_url: `https://i.pravatar.cc/150?u=${encodeURIComponent(safeNameMatch[1])}`,
-          persona: safePersonaMatch[1],
-          greeting: safeGreetingMatch[1],
-          backstory: 'Generated via Stheno AI',
-          key_memories: '',
-          scenario: '',
-          response_directives: '',
-          example_dialogue: '',
-        });
+    const jsonMatch = sanitized.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const json = JSON.parse(jsonMatch[0]);
+        return NextResponse.json(json);
+      } catch {
+        /* try fallback regex below */
       }
-      return NextResponse.json({ error: 'JSON parsing error: ' + content }, { status: 500 });
     }
+
+    // Field-level regex extraction fallback
+    const extractField = (field: string, fallback = '') => {
+      const re = new RegExp(`"${field}"\\s*:\\s*"([^"]*)"`, 'i');
+      const m = content.match(re);
+      return m ? m[1].replace(/\\n/g, '\n') : fallback;
+    };
+
+    const name = extractField('name', 'Generated Persona');
+    const gender = extractField('gender', 'Female');
+    const avatar_url = extractField('avatar_url', `https://i.pravatar.cc/150?u=${encodeURIComponent(name)}`);
+    const persona = extractField('persona', prompt);
+    const greeting = extractField('greeting', `*Smiles warmly.* "Hello!"`);
+    const backstory = extractField('backstory');
+    const key_memories = extractField('key_memories');
+    const scenario = extractField('scenario');
+    const response_directives = extractField('response_directives');
+    const example_dialogue = extractField('example_dialogue');
+
+    return NextResponse.json({
+      name,
+      gender,
+      avatar_url,
+      persona,
+      greeting,
+      backstory,
+      key_memories,
+      scenario,
+      response_directives,
+      example_dialogue,
+    });
   } catch (error) {
     console.error('Error generating character:', error);
     return NextResponse.json({ error: 'Failed to generate character: ' + String(error) }, { status: 500 });
