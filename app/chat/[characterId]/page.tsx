@@ -68,7 +68,7 @@ export default function DedicatedChatRoom() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
 
-  // Settings (temperature passed to backend AI completions)
+  // Settings
   const [temperature, setTemperature] = useState<number>(0.8);
 
   // Editing state
@@ -100,10 +100,13 @@ export default function DedicatedChatRoom() {
     facts: [],
   });
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
+  // Scroll ONLY the message list container so header is 100% permanently fixed
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   }, [messages, streaming]);
 
   const loadCharacter = useCallback(async () => {
@@ -314,9 +317,9 @@ export default function DedicatedChatRoom() {
       />
 
       {/* Main Workspace */}
-      <section className="flex-1 flex flex-col min-h-0 relative">
-        {/* Header Bar - Fixed Sticky at Top */}
-        <header className="sticky top-0 z-30 h-14 px-4 md:px-6 border-b border-zinc-900 flex items-center justify-between shrink-0 bg-zinc-950/95 backdrop-blur-md">
+      <section className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
+        {/* Header Bar - Permanently Fixed at Top */}
+        <header className="h-14 px-4 md:px-6 border-b border-zinc-900 flex items-center justify-between shrink-0 bg-zinc-950 z-30 select-none">
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -372,8 +375,8 @@ export default function DedicatedChatRoom() {
           </div>
         </header>
 
-        {/* Message Log */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+        {/* Message Log - Strictly Scrollable Inner Container */}
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6 space-y-4">
           <div className="max-w-3xl mx-auto space-y-3">
             <AnimatePresence initial={false}>
               {messages.map((m, i) => (
@@ -397,12 +400,11 @@ export default function DedicatedChatRoom() {
                 </motion.div>
               ))}
             </AnimatePresence>
-            <div ref={bottomRef} />
           </div>
         </div>
 
         {/* Input Composer */}
-        <footer className="border-t border-zinc-900 bg-zinc-950 p-4 shrink-0">
+        <footer className="border-t border-zinc-900 bg-zinc-950 p-4 shrink-0 z-10">
           <div className="max-w-3xl mx-auto">
             <ChatInput
               onSend={handleSendMessage}

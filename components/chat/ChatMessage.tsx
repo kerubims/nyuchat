@@ -69,13 +69,14 @@ export function ChatMessage({
     }
   };
 
+  // Direct inline text replacement when translation is toggled (no extra sub-box!)
   const displayContent = showTranslation && translatedText ? translatedText : content;
 
   if (role === 'user') {
     return (
       <div className="flex justify-end my-2">
         <div className="max-w-[88%] sm:max-w-[80%] flex items-end gap-1.5">
-          {/* Icon ONLY Edit Button matching user bubble style */}
+          {/* Icon ONLY Edit Button */}
           {!isStreaming && onEdit && (
             <button
               onClick={() => onEdit(id, content)}
@@ -120,26 +121,20 @@ export function ChatMessage({
               <span className="inline-block w-2 h-4 ml-1 bg-purple-400 animate-pulse" />
             )}
           </div>
-
-          {/* Translated sub-box */}
-          {showTranslation && translatedText && (
-            <div className="pt-2 border-t border-zinc-800 text-[13px] text-emerald-300 bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-900/60 space-y-1">
-              <span className="block text-[10px] font-mono text-emerald-400 uppercase tracking-wider font-bold">
-                Terjemahan Bahasa Indonesia:
-              </span>
-              <div className="whitespace-pre-wrap">{formatContent(translatedText)}</div>
-            </div>
-          )}
         </div>
 
-        {/* Icon ONLY Action Buttons underneath Assistant bubble matching bubble colors */}
+        {/* Icon ONLY Action Buttons underneath Assistant bubble (Direct inline translation toggle) */}
         {!isStreaming && (
           <div className="flex items-center gap-1 pt-0.5">
             <button
               onClick={handleTranslate}
               disabled={isTranslating}
-              className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors shadow-sm disabled:opacity-50"
-              title={showTranslation ? 'Tampilkan Teks Asli' : 'Terjemahkan ke Bahasa Indonesia'}
+              className={`p-1.5 rounded-lg border transition-colors shadow-sm disabled:opacity-50 ${
+                showTranslation
+                  ? 'bg-emerald-950/60 border-emerald-800 text-emerald-400 hover:bg-emerald-900'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+              }`}
+              title={showTranslation ? 'Tampilkan Teks Asli (English)' : 'Terjemahkan ke Bahasa Indonesia'}
             >
               <Translate size={14} weight="bold" className={isTranslating ? 'animate-spin' : ''} />
             </button>
