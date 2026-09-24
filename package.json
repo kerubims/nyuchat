@@ -1,0 +1,48 @@
+{
+  "name": "nyuchat",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack -p 3000",
+    "build": "npx prisma generate && next build",
+    "start": "next start",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "fetch:models": "bash scripts/fetch_bge_m3.sh onnx/embedder",
+    "build:reranker": "python3 scripts/build_reranker_onnx.py",
+    "to:fp16": "python3 scripts/to_fp16.py",
+    "e2e": "bash scripts/http_e2e.sh",
+    "e2e:nsfw": "bash scripts/http_nsfw.sh"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.8.1",
+    "@vitalets/google-translate-api": "^9.2.1",
+    "@xenova/transformers": "^2.17.2",
+    "ai": "^4.3.16",
+    "motion": "^13.4.2",
+    "next": "^15.5.26",
+    "onnxruntime-node": "^1.30.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "sharp": "^0.35.4",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/uuid": "^10",
+    "eslint": "^9",
+    "eslint-config-next": "^15.3.3",
+    "prisma": "^7.8.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

@@ -1,0 +1,19 @@
+services:
+  nyuchat-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nyuchat-web
+    restart: unless-stopped
+    ports:
+      - "9010:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:shared_postgres_secret_2026@shared-postgres:5432/nyuchat?schema=public
+      - NOVITA_API_KEY=${NOVITA_API_KEY:-""}
+    networks:
+      - shared-db-net
+
+networks:
+  shared-db-net:
+    external: true

@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-accent: oklch(0.72 0.19 152);
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+}
+
+/* taste-skill: shape consistency lock — soft 14px corners everywhere,
+   pill only for primary interactive affordances. */
+html,
+body {
+  height: 100%;
+}
+
+/* Scrolling context is a chat surface, not a page; anchor it to the viewport. */
+#__next,
+body > main {
+  height: 100dvh;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-accent) 30%, transparent);
+}
+
+/* Respect reduced motion for every animated element. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
