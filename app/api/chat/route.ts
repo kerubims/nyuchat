@@ -71,7 +71,7 @@ export async function POST(req: Request) {
             messages: [{ role: 'system', content: ctx.system }, ...ctx.messages],
             temperature: 0.8,
             top_p: 0.95,
-            max_tokens: 320,
+            max_tokens: ctx.director ? 100 : 320,
             stream: true,
           }),
         });

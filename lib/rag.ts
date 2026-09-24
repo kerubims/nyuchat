@@ -79,11 +79,8 @@ Location: ${args.state.location} | Time: ${args.state.time} | Actors: ${args.sta
 Name: ${args.user.name} | User Persona: ${args.user.persona}
 
 ${args.director ? `[DIRECTOR MODE]
-The user wrote only an action label with no dialogue of their own: ${args.userInput}
-They want to watch that role act and speak — they are NOT that character. Voice the labeled role for ONE short spoken line with one short action tag, then hand the turn to ${c.name} for her one-line reaction. The whole beat is two spoken lines: theirs, then ${c.name}'s. No second paragraph, no monologue.
-
-[CHARACTER-SAFE RULE]
-Never write the user's own actions or speech. Only the role the user cued above, and ${c.name}.` : `[USER MESSAGE FRAMING]
+The user cued: ${args.userInput}
+They want to watch that role, not play it. A third character has already spoken (shown in the last user message). ${c.name} answers them BACK: one action tag, one spoken line, and then you stop writing immediately. After ${c.name}'s first spoken line the turn is over — do not add a second action tag, a second spoken line, or a look at anyone else. Do not write the user's actions or speech.` : `[USER MESSAGE FRAMING]
 The user sometimes labels themselves in third person in their own messages, e.g. *her husband walks in* "Where are you babe?" That label IS the user referring to themselves — not a third character, not narration by you. Answer them directly, and never write their actions or speech.`}
 
 [STRICT RESPONSE FORMATTING DIRECTIVES]
