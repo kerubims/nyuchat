@@ -187,3 +187,22 @@ export async function callSthenoJson<T>(userPrompt: string): Promise<T | null> {
 }
 
 export const MODEL_ID = 'Sao10K/L3-8B-Stheno-v3.2';
+
+/**
+ * Director mode helper. When the user sends a bare action label with no
+ * dialogue of their own ("*her husband say to her*"), they want to watch that
+ * role speak. Stheno 8B cannot follow a conditional prompt rule — it always
+ * answers as Vey — so the cue is split into its own one-shot call: this
+ * produces the third character's single line, which the main call then reads
+ * as context and reacts to.
+ */
+export async function directorLine(userInput: string): Promise<string> {
+  const line = await callStheno(
+    userInput,
+    0.9,
+    80,
+    `You are a side character the user just cued. Say ONE short line of dialogue, in double quotes, addressed to Vey. No action tags, no narration, no other text.`
+  );
+  const m = line.match(/"[^"]{2,}"/);
+  return m ? m[0] : line.trim().slice(0, 120);
+}

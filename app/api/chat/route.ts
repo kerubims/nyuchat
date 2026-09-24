@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { assemble } from '@/lib/rag';
-import { extractAndStoreFacts, MODEL_ID } from '@/lib/memory';
+import { extractAndStoreFacts, directorLine, MODEL_ID } from '@/lib/memory';
 
 // Streaming chat completion (SSE). PRD §6.6: Stheno TTFT < 1.0s.
 const NOVITA_URL = 'https://api.novita.ai/v3/openai/chat/completions';
@@ -46,6 +46,14 @@ export async function POST(req: Request) {
   const key = process.env.NOVITA_API_KEY;
   if (!key) return Response.json({ error: 'NOVITA_API_KEY not set' }, { status: 500 });
 
+  // Director mode: the user cued a third character without writing dialogue.
+  // Generate that character's line first (Stheno 8B can't do both in one call),
+  // let Vey react to it, and surface both to the client.
+  const directorLineText = ctx.director ? await directorLine(message) : '';
+  if (directorLineText) {
+    ctx.messages.push({ role: 'user', content: `${message} ${directorLineText}` });
+  }
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -54,6 +62,7 @@ export async function POST(req: Request) {
 
       let full = '';
       try {
+        if (directorLineText) send({ token: directorLineText + ' ' });
         const res = await fetch(NOVITA_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
