@@ -7,6 +7,11 @@ import { User, Plus, Compass, ChatCircleDots } from '@phosphor-icons/react';
 export function Navbar() {
   const pathname = usePathname();
 
+  // Hide top global Navbar inside chat room to give 100% full screen chat space
+  if (pathname.startsWith('/chat/')) {
+    return null;
+  }
+
   const links = [
     { href: '/', label: 'Dashboard', icon: ChatCircleDots },
     { href: '/characters', label: 'Personas', icon: Compass },

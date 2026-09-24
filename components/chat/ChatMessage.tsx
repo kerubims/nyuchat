@@ -73,37 +73,36 @@ export function ChatMessage({
 
   if (role === 'user') {
     return (
-      <div className="flex justify-end group/usermsg my-2">
-        <div className="relative max-w-[85%] sm:max-w-[78%]">
-          {/* Action buttons on hover */}
-          {!isStreaming && onEdit && (
-            <div className="absolute -left-9 top-1/2 -translate-y-1/2 opacity-100 md:opacity-0 md:group-hover/usermsg:opacity-100 transition-opacity">
-              <button
-                onClick={() => onEdit(id, content)}
-                title="Edit message"
-                className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors shadow-sm"
-              >
-                <PencilSimple size={14} />
-              </button>
-            </div>
-          )}
-
+      <div className="flex justify-end my-2">
+        <div className="max-w-[88%] sm:max-w-[80%] flex flex-col items-end gap-1.5">
           <div className="rounded-2xl bg-zinc-100 text-zinc-950 px-4 py-3 text-[14px] leading-relaxed font-medium shadow-sm">
             <div className="whitespace-pre-wrap">{formatContent(content)}</div>
           </div>
+
+          {/* High-contrast Edit Button placed below user bubble (no overflow) */}
+          {!isStreaming && onEdit && (
+            <button
+              onClick={() => onEdit(id, content)}
+              className="px-2.5 py-1 rounded-lg bg-amber-950/60 border border-amber-700/80 text-amber-300 hover:bg-amber-900 hover:text-white transition-colors text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+              title="Edit message"
+            >
+              <PencilSimple size={14} weight="bold" />
+              <span>Edit</span>
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex justify-start items-start gap-3 group/assistantmsg my-2">
+    <div className="flex justify-start items-start gap-3 my-2">
       <Avatar url={avatarUrl} name={characterName || 'AI'} />
 
-      <div className="relative max-w-[85%] sm:max-w-[78%]">
-        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-100 px-4 py-3 text-[14px] leading-relaxed shadow-sm">
+      <div className="max-w-[88%] sm:max-w-[80%] flex flex-col gap-1.5">
+        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-100 px-4 py-3 text-[14px] leading-relaxed shadow-sm space-y-2">
           {characterName && (
-            <div className="flex justify-between items-center mb-1.5 pb-1 border-b border-zinc-800/60">
+            <div className="flex justify-between items-center pb-1 border-b border-zinc-800/60">
               <span className="text-[11px] font-mono text-zinc-400 font-semibold uppercase tracking-wider">
                 {characterName}
               </span>
@@ -112,7 +111,7 @@ export function ChatMessage({
 
           <div className="whitespace-pre-wrap">
             {isRegenerating && !displayContent && (
-              <div className="flex items-center gap-2 text-purple-400 text-xs animate-pulse mb-1">
+              <div className="flex items-center gap-2 text-purple-400 text-xs animate-pulse mb-1 font-mono">
                 <ArrowClockwise className="animate-spin" size={14} />
                 <span>Regenerating response...</span>
               </div>
@@ -125,8 +124,8 @@ export function ChatMessage({
 
           {/* Translated sub-box */}
           {showTranslation && translatedText && (
-            <div className="mt-2.5 pt-2 border-t border-zinc-800 text-[13px] text-emerald-300 bg-emerald-950/20 p-2.5 rounded-xl border border-emerald-900/40">
-              <span className="block text-[10px] font-mono text-emerald-400 uppercase tracking-wider mb-1 font-semibold">
+            <div className="pt-2 border-t border-zinc-800 text-[13px] text-emerald-300 bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-900/60 space-y-1">
+              <span className="block text-[10px] font-mono text-emerald-400 uppercase tracking-wider font-bold">
                 Terjemahan Bahasa Indonesia:
               </span>
               <div className="whitespace-pre-wrap">{formatContent(translatedText)}</div>
@@ -134,24 +133,25 @@ export function ChatMessage({
           )}
         </div>
 
-        {/* Action Buttons on hover */}
+        {/* High-contrast Action Buttons placed neatly underneath Assistant bubble (NO RIGHT OVERFLOW!) */}
         {!isStreaming && (
-          <div className="absolute -right-20 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover/assistantmsg:opacity-100 transition-opacity">
+          <div className="flex items-center gap-2 pt-0.5">
             <button
               onClick={handleTranslate}
               disabled={isTranslating}
-              title={showTranslation ? 'Show Original' : 'Translate'}
-              className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors shadow-sm"
+              className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-700/80 text-cyan-300 hover:bg-cyan-900 hover:text-white transition-colors text-xs font-semibold flex items-center gap-1.5 shadow-sm disabled:opacity-50"
             >
-              <Translate size={14} className={isTranslating ? 'animate-spin' : ''} />
+              <Translate size={14} weight="bold" className={isTranslating ? 'animate-spin' : ''} />
+              <span>{showTranslation ? 'Original' : 'Translate'}</span>
             </button>
+
             {onRegenerate && (
               <button
                 onClick={() => onRegenerate(id)}
-                title="Regenerate"
-                className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors shadow-sm"
+                className="px-2.5 py-1 rounded-lg bg-purple-950/60 border border-purple-700/80 text-purple-300 hover:bg-purple-900 hover:text-white transition-colors text-xs font-semibold flex items-center gap-1.5 shadow-sm"
               >
-                <ArrowClockwise size={14} />
+                <ArrowClockwise size={14} weight="bold" />
+                <span>Regenerate</span>
               </button>
             )}
           </div>
@@ -174,7 +174,7 @@ function Avatar({ url, name }: { url?: string | null; name: string }) {
     return <img src={url} alt={name} className="h-8 w-8 rounded-full object-cover shrink-0 border border-zinc-800 mt-1" />;
   }
   return (
-    <span className="h-8 w-8 rounded-full bg-zinc-800 border border-zinc-700 grid place-items-center text-[11px] font-medium shrink-0 text-zinc-300 mt-1">
+    <span className="h-8 w-8 rounded-full bg-zinc-800 border border-zinc-700 grid place-items-center text-[11px] font-bold shrink-0 text-zinc-300 mt-1">
       {initials}
     </span>
   );

@@ -70,7 +70,6 @@ export default function DedicatedChatRoom() {
 
   // Settings
   const [temperature, setTemperature] = useState<number>(0.8);
-  const [selectedModel, setSelectedModel] = useState<string>('stheno');
 
   // Editing state
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -228,7 +227,7 @@ export default function DedicatedChatRoom() {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: activeSessionId, message: content, temperature, model: selectedModel }),
+      body: JSON.stringify({ sessionId: activeSessionId, message: content, temperature, model: 'stheno' }),
     });
 
     if (!res.ok) {
@@ -288,7 +287,7 @@ export default function DedicatedChatRoom() {
 
   if (loading || !character) {
     return (
-      <main className="flex-1 grid place-items-center bg-zinc-950 text-zinc-500 p-8">
+      <main className="h-screen w-screen grid place-items-center bg-zinc-950 text-zinc-500 p-8">
         <div className="flex flex-col gap-3 items-center">
           <div className="h-8 w-8 rounded-full border-2 border-zinc-800 border-t-zinc-300 animate-spin" />
           <p className="text-xs font-mono">Entering chat room...</p>
@@ -298,7 +297,7 @@ export default function DedicatedChatRoom() {
   }
 
   return (
-    <main className="flex-1 h-[calc(100vh-3.5rem)] flex bg-zinc-950 text-zinc-100 overflow-hidden">
+    <main className="h-screen w-screen flex bg-zinc-950 text-zinc-100 overflow-hidden">
       {/* Session Sidebar Component */}
       <SessionSidebar
         sessions={sessions}
@@ -309,8 +308,6 @@ export default function DedicatedChatRoom() {
         characterName={character.name}
         temperature={temperature}
         setTemperature={setTemperature}
-        selectedModel={selectedModel}
-        setSelectedModel={setSelectedModel}
         usageStats={usage}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
