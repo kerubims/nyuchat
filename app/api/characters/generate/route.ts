@@ -15,18 +15,19 @@ export async function POST(req: Request) {
 
     const systemPrompt = `You are a master character designer for stateful roleplay.
 Given a user idea, generate a detailed persona character JSON object.
-Output ONLY raw, valid JSON matching this exact structure (no markdown wrappers, no extra explanation text):
+CRITICAL: Use single quotes ('...') for internal dialogue or quotes inside strings to maintain strictly valid JSON.
+Output ONLY raw, valid JSON matching this exact structure:
 {
   "name": "Character Name",
   "gender": "Female",
   "avatar_url": "https://i.pravatar.cc/150?u=unique_name",
   "persona": "[Personality: ...][Background: ...][Traits: ...]",
-  "greeting": "*Action description in asterisk.* \\"Dialogue in quotes.\\"",
+  "greeting": "*Action description in asterisk.* 'Dialogue in single quotes.'",
   "backstory": "Detailed backstory...",
   "key_memories": "- Memory point 1\\n- Memory point 2",
   "scenario": "Setting and environment scenario...",
   "response_directives": "- Directive 1\\n- Directive 2",
-  "example_dialogue": "User: \\"...\\"\\nCharacter: *...* \\"...\\""
+  "example_dialogue": "User: '...'\\nCharacter: *...* '...'"
 }`;
 
     const authHeader = ['Bearer', novitaKey].join(' ');
@@ -60,8 +61,32 @@ Output ONLY raw, valid JSON matching this exact structure (no markdown wrappers,
       return NextResponse.json({ error: 'Failed to extract JSON from AI response: ' + content }, { status: 500 });
     }
 
-    const json = JSON.parse(jsonMatch[0]);
-    return NextResponse.json(json);
+    const jsonStr = jsonMatch[0];
+    try {
+      const json = JSON.parse(jsonStr);
+      return NextResponse.json(json);
+    } catch {
+      const safeNameMatch = content.match(/"name":\s*"([^"]+)"/);
+      const safeGenderMatch = content.match(/"gender":\s*"([^"]+)"/);
+      const safePersonaMatch = content.match(/"persona":\s*"([^"]+)"/);
+      const safeGreetingMatch = content.match(/"greeting":\s*"([^"]+)"/);
+
+      if (safeNameMatch && safePersonaMatch && safeGreetingMatch) {
+        return NextResponse.json({
+          name: safeNameMatch[1],
+          gender: safeGenderMatch ? safeGenderMatch[1] : 'Female',
+          avatar_url: `https://i.pravatar.cc/150?u=${encodeURIComponent(safeNameMatch[1])}`,
+          persona: safePersonaMatch[1],
+          greeting: safeGreetingMatch[1],
+          backstory: 'Generated via Stheno AI',
+          key_memories: '',
+          scenario: '',
+          response_directives: '',
+          example_dialogue: '',
+        });
+      }
+      return NextResponse.json({ error: 'JSON parsing error: ' + content }, { status: 500 });
+    }
   } catch (error) {
     console.error('Error generating character:', error);
     return NextResponse.json({ error: 'Failed to generate character: ' + String(error) }, { status: 500 });
