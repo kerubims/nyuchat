@@ -2,17 +2,18 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Translate,
   Brain,
   Plus,
-  ArrowLeft,
   PaperPlaneRight,
-  Sparkle,
   SidebarSimple,
   Circle,
+  Trash,
+  PencilSimple,
+  Check,
+  X,
 } from '@phosphor-icons/react';
 
 type Character = {
@@ -61,7 +62,11 @@ export default function DedicatedChatRoom() {
   const [input, setInput] = useState('');
   const [draft, setDraft] = useState<string | null>(null);
 
-  // Translations map for assistant message bubbles: { messageIndexOrId: translatedText }
+  // Editing state for user messages
+  const [editingMsgIndex, setEditingMsgIndex] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
+
+  // Translations map for assistant message bubbles: { msgIndexOrId: translatedText }
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [translatingMsgId, setTranslatingMsgId] = useState<string | null>(null);
 
@@ -106,6 +111,7 @@ export default function DedicatedChatRoom() {
   const openSession = useCallback(async (s: Session) => {
     setActiveSession(s);
     setDraft(null);
+    setEditingMsgIndex(null);
     const res = await fetch(`/api/sessions/${s.id}`);
     const j: { messages: Message[] } = await res.json();
     setMessages(j.messages);
@@ -124,6 +130,24 @@ export default function DedicatedChatRoom() {
     setActiveSession(session);
     setMessages([{ sender: 'assistant', content: character.greeting }]);
   }, [character, loadSessions]);
+
+  const deleteSession = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this session?')) return;
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+      if (res.ok) {
+        const remaining = sessions.filter((s) => s.id !== sessionId);
+        setSessions(remaining);
+        if (activeSession?.id === sessionId) {
+          if (remaining.length > 0) openSession(remaining[0]);
+          else createNewSession();
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -165,7 +189,6 @@ export default function DedicatedChatRoom() {
   // Translate Assistant Bubble Message (On-Demand EN -> ID)
   const translateMessageBubble = async (msgKey: string, text: string) => {
     if (translations[msgKey]) {
-      // Toggle off if already translated
       const updated = { ...translations };
       delete updated[msgKey];
       setTranslations(updated);
@@ -262,6 +285,13 @@ export default function DedicatedChatRoom() {
     [activeSession, streaming]
   );
 
+  const saveEditedMessage = (index: number) => {
+    if (!editingText.trim()) return;
+    setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, content: editingText } : m)));
+    setEditingMsgIndex(null);
+    sendMessage(editingText);
+  };
+
   if (loading || !character) {
     return (
       <main className="flex-1 grid place-items-center bg-zinc-950 text-zinc-500 p-8">
@@ -297,18 +327,27 @@ export default function DedicatedChatRoom() {
 
         <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
           {sessions.map((s) => (
-            <button
+            <div
               key={s.id}
               onClick={() => openSession(s)}
-              className={`w-full text-left p-2.5 rounded-xl text-xs transition-colors flex items-center justify-between ${
+              className={`group w-full text-left p-2.5 rounded-xl text-xs transition-colors flex items-center justify-between cursor-pointer ${
                 activeSession?.id === s.id
                   ? 'bg-zinc-900 text-zinc-100 border border-zinc-800 font-medium'
                   : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-200'
               }`}
             >
-              <span className="truncate">{s.title}</span>
-              {activeSession?.id === s.id && <Circle size={6} weight="fill" className="text-emerald-500 shrink-0" />}
-            </button>
+              <span className="truncate flex-1 pr-2">{s.title}</span>
+              <div className="flex items-center gap-1">
+                {activeSession?.id === s.id && <Circle size={6} weight="fill" className="text-emerald-500 shrink-0" />}
+                <button
+                  onClick={(e) => deleteSession(e, s.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:text-rose-400 transition-all rounded"
+                  title="Delete Session"
+                >
+                  <Trash size={14} />
+                </button>
+              </div>
+            </div>
           ))}
         </div>
       </aside>
@@ -362,6 +401,7 @@ export default function DedicatedChatRoom() {
                 const isUser = m.sender === 'user';
                 const translated = translations[msgKey];
                 const isTranslating = translatingMsgId === msgKey;
+                const isEditing = editingMsgIndex === i;
 
                 return (
                   <motion.div
@@ -384,7 +424,6 @@ export default function DedicatedChatRoom() {
                             <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">
                               {character.name}
                             </span>
-                            {/* Per-Message Translate Button (EN -> ID) */}
                             <button
                               onClick={() => translateMessageBubble(msgKey, m.content)}
                               disabled={isTranslating || !m.content.trim()}
@@ -399,7 +438,48 @@ export default function DedicatedChatRoom() {
                           </div>
                         )}
 
-                        <FormattedText text={m.content} />
+                        {isUser && !isEditing && (
+                          <div className="flex items-center justify-between gap-3 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="text-[10px] font-mono text-zinc-500">You</span>
+                            <button
+                              onClick={() => {
+                                setEditingMsgIndex(i);
+                                setEditingText(m.content);
+                              }}
+                              className="text-zinc-500 hover:text-zinc-900 transition-colors"
+                              title="Edit message"
+                            >
+                              <PencilSimple size={13} />
+                            </button>
+                          </div>
+                        )}
+
+                        {isEditing ? (
+                          <div className="space-y-2 py-1">
+                            <textarea
+                              value={editingText}
+                              onChange={(e) => setEditingText(e.target.value)}
+                              className="w-full bg-zinc-200 text-zinc-950 p-2 rounded-lg text-xs outline-none resize-none font-medium"
+                              rows={2}
+                            />
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => setEditingMsgIndex(null)}
+                                className="p-1 rounded text-zinc-600 hover:text-zinc-950"
+                              >
+                                <X size={14} />
+                              </button>
+                              <button
+                                onClick={() => saveEditedMessage(i)}
+                                className="p-1 rounded bg-zinc-950 text-zinc-100 hover:bg-zinc-800"
+                              >
+                                <Check size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <FormattedText text={m.content} />
+                        )}
 
                         {/* Translated Box */}
                         {translated && (

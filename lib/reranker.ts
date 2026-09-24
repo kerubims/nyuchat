@@ -1,11 +1,8 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import * as ort from 'onnxruntime-node';
 import { makeTokenizer, type AnyTokenizer } from './tok';
 
-// bge-reranker-v2-m3 ONNX (own export, see scripts/build_reranker_onnx.py).
-// transformers.js v2 can't run this architecture natively (it drops
-// token_type_ids), so we load the exported graph via onnxruntime-node and
-// tokenize with the shared on-disk XLM-R reader (lib/tok.ts).
 const MODEL_DIR = path.resolve(process.cwd(), 'onnx', 'reranker');
 
 let tokPromise: Promise<AnyTokenizer> | null = null;
@@ -20,9 +17,10 @@ function tokenizer(): Promise<AnyTokenizer> {
 
 function session(): Promise<ort.InferenceSession> {
   if (!sessPromise) {
-    // fp16 build (scripts/to_fp16_stream.py): half the RAM, same ranking
-    // scores within 0.0001, ~1.5-2x faster than fp32 on this 4-core box.
-    const file = path.join(MODEL_DIR, 'reranker_fp16.onnx');
+    const fp16File = path.join(MODEL_DIR, 'reranker_fp16.onnx');
+    const baseFile = path.join(MODEL_DIR, 'reranker.onnx');
+    const file = fs.existsSync(fp16File) ? fp16File : baseFile;
+
     sessPromise = ort.InferenceSession.create(file, {
       executionProviders: ['cpu'],
       graphOptimizationLevel: 'all',
@@ -34,19 +32,15 @@ function session(): Promise<ort.InferenceSession> {
 }
 
 export interface RerankHit {
-  /** 0..1 relevance score from the cross-encoder sigmoid. */
   score: number;
   index: number;
 }
 
-/** Score query/passage pairs with the cross-encoder, returns sigmoid(logits). */
 export async function rerank(query: string, passages: string[]): Promise<RerankHit[]> {
   if (passages.length === 0) return [];
   const tok = await tokenizer()!;
   const sess = await session();
 
-  // XLM-R tokenizer only accepts one (text, text_pair) at a time, so encode
-  // per pair and pad to the longest sequence in the batch.
   const encs = await Promise.all(
     passages.map((p) =>
       tok(query, { text_pair: p, truncation: true, add_special_tokens: true })
@@ -76,14 +70,12 @@ export async function rerank(query: string, passages: string[]): Promise<RerankH
   const out = await sess.run({ input_ids: idsT, attention_mask: maskT, token_type_ids: ttidT });
   const logits = (out.logits?.data as Float32Array) ?? (Object.values(out)[0].data as Float32Array);
 
-  // bge-reranker-v2-m3 raw logits sit in a narrow band; map to 0..1 with a
-  // centered sigmoid (robust to score drift) then sort.
   const raw = Array.from({ length: passages.length }, (_, i) => logits[i] ?? -10);
   const lo = Math.min(...raw);
   const hi = Math.max(...raw);
   const mid = (lo + hi) / 2;
   const span = hi - lo || 1;
-  const scaled = raw.map((x) => 4 * (x - mid) / span); // ~[-4,4]
+  const scaled = raw.map((x) => 4 * (x - mid) / span);
 
   return raw
     .map((_, i) => ({
