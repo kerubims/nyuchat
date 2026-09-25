@@ -226,7 +226,7 @@ export async function POST(req: Request) {
 
       if (full.trim()) {
         const cleaned = ctx.director ? await directorLine(full, session.character.name) : full;
-        await prisma.chatMessage.create({
+        const savedMsg = await prisma.chatMessage.create({
           data: {
             chat_session_id: sessionId,
             sender: 'assistant',
@@ -254,6 +254,7 @@ export async function POST(req: Request) {
         controller.enqueue(
           encoder.encode(
             `data: ${JSON.stringify({
+              messageId: savedMsg.id,
               usage: {
                 prompt_tokens: promptTokens,
                 completion_tokens: completionTokens,

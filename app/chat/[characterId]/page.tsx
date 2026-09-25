@@ -312,9 +312,16 @@ export default function DedicatedChatRoom() {
     const targetIndex = messages.findIndex((m) => m.id === assistantMessageId);
     if (targetIndex === -1 || streaming || !activeSessionId) return;
 
-    // Truncate the assistant message from UI state
-    setMessages((m) => m.slice(0, targetIndex));
+    const newAssistantId = crypto.randomUUID();
     setStreaming(true);
+
+    // Atomically replace target assistant message with a new empty streaming message
+    setMessages((m) => {
+      const idx = m.findIndex((x) => x.id === assistantMessageId);
+      if (idx === -1) return m;
+      const base = m.slice(0, idx);
+      return [...base, { id: newAssistantId, sender: 'assistant', content: '', isStreaming: true, isRegenerating: true }];
+    });
 
     const res = await fetch('/api/chat', {
       method: 'POST',
@@ -335,9 +342,6 @@ export default function DedicatedChatRoom() {
     const dec = new TextDecoder();
     let buf = '';
     let acc = '';
-    const id = crypto.randomUUID();
-
-    setMessages((m) => [...m, { id, sender: 'assistant', content: '', isStreaming: true, isRegenerating: true }]);
 
     for (;;) {
       const { done, value } = await reader.read();
@@ -351,14 +355,17 @@ export default function DedicatedChatRoom() {
         try {
           const j: {
             token?: string;
+            messageId?: string;
             error?: string;
             usage?: { prompt_tokens: number; completion_tokens: number; cost_usd: number };
           } = JSON.parse(payload);
           if (j.error) {
-            setMessages((m) => m.map((x) => (x.id === id ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false, isRegenerating: false } : x)));
+            setMessages((m) => m.map((x) => (x.id === newAssistantId ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false, isRegenerating: false } : x)));
+          } else if (j.messageId) {
+            setMessages((m) => m.map((x) => (x.id === newAssistantId ? { ...x, id: j.messageId! } : x)));
           } else if (j.token) {
             acc += j.token;
-            setMessages((m) => m.map((x) => (x.id === id ? { ...x, content: acc } : x)));
+            setMessages((m) => m.map((x) => (x.id === newAssistantId ? { ...x, content: acc } : x)));
           } else if (j.usage) {
             setUsage((prev) => ({
               promptTokens: prev.promptTokens + j.usage!.prompt_tokens,
@@ -371,7 +378,7 @@ export default function DedicatedChatRoom() {
         }
       }
     }
-    setMessages((m) => m.map((x) => (x.id === id ? { ...x, isStreaming: false, isRegenerating: false } : x)));
+    setMessages((m) => m.map((x) => (x.id === newAssistantId ? { ...x, isStreaming: false, isRegenerating: false } : x)));
     setStreaming(false);
   };
 
