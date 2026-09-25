@@ -134,7 +134,11 @@ export default function DedicatedChatRoom() {
     const res = await fetch(`/api/sessions/${sessionId}`);
     if (res.ok) {
       const data = await res.json();
-      setMessages(data.messages || []);
+      const loadedMsgs = (data.messages || []).map((m: { id?: string; sender: string; content: string }) => ({
+        ...m,
+        id: m.id || crypto.randomUUID(),
+      }));
+      setMessages(loadedMsgs);
       setUsage({
         promptTokens: data.session?.total_prompt_tokens || 0,
         completionTokens: data.session?.total_completion_tokens || 0,
@@ -153,7 +157,7 @@ export default function DedicatedChatRoom() {
     const s = await res.json();
     await loadSessions();
     setActiveSessionId(s.id);
-    setMessages([{ sender: 'assistant', content: character.greeting }]);
+    setMessages([{ id: crypto.randomUUID(), sender: 'assistant', content: character.greeting }]);
     setUsage({ promptTokens: 0, completionTokens: 0, totalCost: 0 });
   }, [character, loadSessions]);
 
@@ -222,7 +226,7 @@ export default function DedicatedChatRoom() {
     if (!activeSessionId || !text.trim() || streaming) return;
 
     let currentEditId: string | null = null;
-    if (editingMessageId) {
+    if (editingMessageId !== null && editingMessageId !== undefined && editingMessageId !== '') {
       currentEditId = editingMessageId;
       setEditingMessageId(null);
     }
