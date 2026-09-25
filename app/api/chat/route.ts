@@ -161,7 +161,7 @@ export async function POST(req: Request) {
     stream: true,
     stream_options: { include_usage: true },
     temperature: Math.max(0.1, Math.min(1.5, temperature)),
-    max_tokens: 1000,
+    max_tokens: 250,
   };
 
   const nRes = await fetch(NOVITA_URL, {
