@@ -107,6 +107,16 @@ export async function POST(req: Request) {
       }
     }
 
+    // Reset episodic summary and scene state since storyline was edited
+    await prisma.chatSession.update({
+      where: { id: sessionId },
+      data: {
+        global_summary: null,
+        current_state: `Location: living room | Time: evening | Actors: ${session.character.name}, User`,
+        msg_since_summary: 0,
+      },
+    });
+
     await prisma.chatMessage.create({
       data: { id: newMsgId, chat_session_id: sessionId, sender: 'user', content: userInput },
     });
