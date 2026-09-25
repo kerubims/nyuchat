@@ -7,13 +7,22 @@ import { updateSceneState, generateTitle } from '@/lib/state';
 const NOVITA_URL = 'https://api.novita.ai/v3/openai/chat/completions';
 
 export async function POST(req: Request) {
-  const { sessionId, message, temperature = 0.8, editMessageId, regenerateMessageId } = (await req.json()) as {
+  const {
+    sessionId,
+    message,
+    temperature = 0.8,
+    editMessageId,
+    regenerateMessageId,
+    clientMsgId,
+  } = (await req.json()) as {
     sessionId?: string;
     message?: string;
     temperature?: number;
     editMessageId?: string;
     regenerateMessageId?: string;
+    clientMsgId?: string;
   };
+
   if (!sessionId) {
     return Response.json({ error: 'sessionId required' }, { status: 400 });
   }
@@ -25,20 +34,52 @@ export async function POST(req: Request) {
   if (!session) return Response.json({ error: 'session not found' }, { status: 404 });
 
   let userInput = message?.trim() || '';
+  const newMsgId = clientMsgId || crypto.randomUUID();
 
-  // Case A: Regenerating an assistant response
-  if (regenerateMessageId) {
-    const targetMsg = await prisma.chatMessage.findUnique({
-      where: { id: regenerateMessageId },
+  // Helper to delete target message and all subsequent messages in session
+  const deleteFromMessageOnward = async (targetId: string) => {
+    const allMsgs = await prisma.chatMessage.findMany({
+      where: { chat_session_id: sessionId },
+      orderBy: { created_at: 'asc' },
     });
-    if (targetMsg && targetMsg.chat_session_id === sessionId) {
+
+    const targetIdx = allMsgs.findIndex((m) => m.id === targetId);
+    if (targetIdx !== -1) {
+      const idsToDelete = allMsgs.slice(targetIdx).map((m) => m.id);
+      await prisma.chatMessage.deleteMany({
+        where: { id: { in: idsToDelete } },
+      });
+      return true;
+    }
+
+    // Fallback: try by timestamp if ID match failed
+    const targetMsg = allMsgs.find((m) => m.id === targetId);
+    if (targetMsg) {
       await prisma.chatMessage.deleteMany({
         where: {
           chat_session_id: sessionId,
           created_at: { gte: targetMsg.created_at },
         },
       });
+      return true;
     }
+    return false;
+  };
+
+  // Case A: Regenerating an assistant response
+  if (regenerateMessageId) {
+    const deleted = await deleteFromMessageOnward(regenerateMessageId);
+    if (!deleted) {
+      // Fallback if ID was lost: delete last assistant message
+      const lastAssistant = await prisma.chatMessage.findFirst({
+        where: { chat_session_id: sessionId, sender: 'assistant' },
+        orderBy: { created_at: 'desc' },
+      });
+      if (lastAssistant) {
+        await deleteFromMessageOnward(lastAssistant.id);
+      }
+    }
+
     const lastUserMsg = await prisma.chatMessage.findFirst({
       where: { chat_session_id: sessionId, sender: 'user' },
       orderBy: { created_at: 'desc' },
@@ -53,19 +94,21 @@ export async function POST(req: Request) {
     if (!userInput) {
       return Response.json({ error: 'message required' }, { status: 400 });
     }
-    const targetMsg = await prisma.chatMessage.findUnique({
-      where: { id: editMessageId },
-    });
-    if (targetMsg && targetMsg.chat_session_id === sessionId) {
-      await prisma.chatMessage.deleteMany({
-        where: {
-          chat_session_id: sessionId,
-          created_at: { gte: targetMsg.created_at },
-        },
+
+    const deleted = await deleteFromMessageOnward(editMessageId);
+    if (!deleted) {
+      // Fallback: delete the last user message and anything after
+      const lastUser = await prisma.chatMessage.findFirst({
+        where: { chat_session_id: sessionId, sender: 'user' },
+        orderBy: { created_at: 'desc' },
       });
+      if (lastUser) {
+        await deleteFromMessageOnward(lastUser.id);
+      }
     }
+
     await prisma.chatMessage.create({
-      data: { chat_session_id: sessionId, sender: 'user', content: userInput },
+      data: { id: newMsgId, chat_session_id: sessionId, sender: 'user', content: userInput },
     });
   }
   // Case C: Normal new user message
@@ -74,7 +117,7 @@ export async function POST(req: Request) {
       return Response.json({ error: 'message required' }, { status: 400 });
     }
     await prisma.chatMessage.create({
-      data: { chat_session_id: sessionId, sender: 'user', content: userInput },
+      data: { id: newMsgId, chat_session_id: sessionId, sender: 'user', content: userInput },
     });
   }
 
@@ -89,7 +132,11 @@ export async function POST(req: Request) {
     orderBy: { created_at: 'asc' },
     take: 8,
   });
-  void extractAndStoreFacts('me', session.character_id, recentUser.map((m) => m.content));
+  extractAndStoreFacts(
+    user?.id ?? 'me',
+    session.character_id,
+    recentUser.map((m) => m.content)
+  ).catch(console.error);
 
   const ctx = await assemble({
     sessionId,
@@ -98,119 +145,91 @@ export async function POST(req: Request) {
     userInput,
   });
 
-  const key = process.env.NOVITA_API_KEY;
-  if (!key) return Response.json({ error: 'NOVITA_API_KEY not set' }, { status: 500 });
+  const body = {
+    model: MODEL_ID,
+    messages: [{ role: 'system', content: ctx.system }, ...ctx.messages],
+    stream: true,
+    stream_options: { include_usage: true },
+    temperature: Math.max(0.1, Math.min(1.5, temperature)),
+    max_tokens: 450,
+  };
 
-  // Track whether this is the first user exchange (for auto-title).
-  const userMsgCount = await prisma.chatMessage.count({
-    where: { chat_session_id: sessionId, sender: 'user' },
+  const nRes = await fetch(NOVITA_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.NOVITA_API_KEY}`,
+    },
+    body: JSON.stringify(body),
   });
 
-  const directorLineText = ctx.director ? await directorLine(userInput) : '';
-  if (directorLineText) {
-    ctx.messages.push({ role: 'user', content: `${userInput} ${directorLineText}` });
+  if (!nRes.ok) {
+    const errText = await nRes.text();
+    return Response.json({ error: `Novita API error: ${errText}` }, { status: 500 });
   }
 
-  // Calculate prompt token estimate (system prompt + message context)
-  const fullPromptText = ctx.system + JSON.stringify(ctx.messages);
-  const promptTokensEst = Math.ceil(fullPromptText.length / 3.8);
-
   const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
+  const reader = nRes.body!.getReader();
+  const dec = new TextDecoder();
+
+  const stream = new ReadableStream({
     async start(controller) {
-      const send = (obj: unknown) =>
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
-
       let full = '';
-      let promptTokens = promptTokensEst;
+      let buf = '';
+      let promptTokens = 0;
       let completionTokens = 0;
+      let costUSD = 0;
 
-      // Novita occasionally returns transient 400/5xx; retry once before erroring.
-      let res: Response | null = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const r = await fetch(NOVITA_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-          body: JSON.stringify({
-            model: MODEL_ID,
-            messages: [{ role: 'system', content: ctx.system }, ...ctx.messages],
-            temperature: typeof temperature === 'number' ? Math.max(0.1, Math.min(1.5, temperature)) : 0.8,
-            top_p: 0.95,
-            max_tokens: ctx.director ? 100 : 320,
-            stream: true,
-            stream_options: { include_usage: true },
-          }),
-        });
-        if (r.ok && r.body) {
-          res = r;
-          break;
-        }
-        const t = await r.text().catch(() => '');
-        const transient = r.status === 429 || r.status >= 500 || r.status === 400;
-        if (!transient) {
-          send({ error: `Novita ${r.status}: ${t.slice(0, 160)}` });
-          controller.close();
-          return;
-        }
-        if (attempt === 1) {
-          send({ error: `Novita ${r.status} (retried): ${t.slice(0, 160)}` });
-          controller.close();
-          return;
-        }
-        await new Promise((ok) => setTimeout(ok, 700));
-      }
-      if (!res) return;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
 
-      try {
-        if (directorLineText) send({ token: directorLineText + ' ' });
-        const reader = res.body!.getReader();
-        const dec = new TextDecoder();
-        let buf = '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith(':')) continue;
+          if (trimmed === 'data: [DONE]') {
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            continue;
+          }
+          if (!trimmed.startsWith('data: ')) continue;
 
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += dec.decode(value, { stream: true });
-          const lines = buf.split('\n');
-          buf = lines.pop() ?? '';
-          for (const line of lines) {
-            const s = line.trim();
-            if (!s.startsWith('data:')) continue;
-            const payload = s.slice(5).trim();
-            if (payload === '[DONE]') continue;
-            try {
-              const j = JSON.parse(payload) as {
-                choices?: { delta?: { content?: string }; finish_reason?: string }[];
-                usage?: { prompt_tokens?: number; completion_tokens?: number };
-              };
-              if (j.usage) {
-                if (j.usage.prompt_tokens) promptTokens = j.usage.prompt_tokens;
-                if (j.usage.completion_tokens) completionTokens = j.usage.completion_tokens;
-              }
-              const delta = j.choices?.[0]?.delta?.content;
-              if (delta) {
-                full += delta;
-                send({ token: delta });
-              }
-            } catch {
-              /* keepalive / partial */
+          try {
+            const parsed = JSON.parse(trimmed.slice(6));
+            if (parsed.usage) {
+              promptTokens = parsed.usage.prompt_tokens || 0;
+              completionTokens = parsed.usage.completion_tokens || 0;
+              costUSD = (promptTokens * 0.00000005) + (completionTokens * 0.00000008);
             }
+            const token = parsed.choices?.[0]?.delta?.content;
+            if (token) {
+              full += token;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token })}\n\n`));
+            }
+          } catch {
+            /* skip unparseable SSE lines */
           }
         }
-      } catch (e) {
-        send({ error: e instanceof Error ? e.message : 'stream failed' });
       }
-
-      if (!completionTokens) {
-        completionTokens = Math.ceil(full.length / 3.8);
-      }
-
-      const costUSD = Number(((promptTokens * 0.00000005) + (completionTokens * 0.00000008)).toFixed(6));
 
       if (full.trim()) {
+        const cleaned = ctx.director ? await directorLine(full) : full;
         await prisma.chatMessage.create({
-          data: { chat_session_id: sessionId, sender: 'assistant', content: full },
+          data: {
+            chat_session_id: sessionId,
+            sender: 'assistant',
+            content: cleaned,
+          },
         });
+
+        if (promptTokens === 0) {
+          promptTokens = Math.ceil((ctx.system.length + JSON.stringify(ctx.messages).length) / 4);
+          completionTokens = Math.ceil(cleaned.length / 4);
+          costUSD = (promptTokens * 0.00000005) + (completionTokens * 0.00000008);
+        }
+
         await prisma.chatSession.update({
           where: { id: sessionId },
           data: {
@@ -222,32 +241,28 @@ export async function POST(req: Request) {
           },
         });
 
-        // Post-turn housekeeping (fire-and-forget, never blocks the stream):
-        // scene-state extraction + one-shot session auto-title.
-        void updateSceneState(sessionId, session.current_state, userInput, full).catch((e) =>
-          console.error('[state] update failed:', e instanceof Error ? e.message : e)
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              usage: {
+                prompt_tokens: promptTokens,
+                completion_tokens: completionTokens,
+                cost_usd: costUSD,
+              },
+            })}\n\n`
+          )
         );
-        if (userMsgCount === 1) {
-          void generateTitle(session.character.name, userInput, full)
-            .then((t) =>
-              t
-                ? prisma.chatSession.update({ where: { id: sessionId }, data: { title: t } })
-                : null
-            )
-            .catch((e) => console.error('[title] failed:', e instanceof Error ? e.message : e));
-        }
 
-        // Send usage summary event to client
-        send({
-          usage: {
-            prompt_tokens: promptTokens,
-            completion_tokens: completionTokens,
-            cost_usd: costUSD,
-          },
-        });
+        updateSceneState(sessionId, session.current_state, userInput, cleaned).catch(console.error);
+        if (!session.title || session.title === 'Chat Baru' || session.title === 'Perkenalan') {
+          generateTitle(session.character.name, userInput, cleaned).then((newTitle) => {
+            if (newTitle) {
+              prisma.chatSession.update({ where: { id: sessionId }, data: { title: newTitle } }).catch(console.error);
+            }
+          }).catch(console.error);
+        }
       }
 
-      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
       controller.close();
     },
   });
@@ -255,7 +270,7 @@ export async function POST(req: Request) {
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
+      'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
     },
   });

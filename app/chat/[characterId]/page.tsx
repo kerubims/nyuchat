@@ -225,15 +225,21 @@ export default function DedicatedChatRoom() {
     if (editingMessageId) {
       currentEditId = editingMessageId;
       setEditingMessageId(null);
-      // Truncate client messages up to edited message
-      const targetIndex = messages.findIndex((m) => m.id === currentEditId);
-      if (targetIndex !== -1) {
-        setMessages(messages.slice(0, targetIndex));
-      }
     }
 
     const content = text.trim();
-    setMessages((m) => [...m, { sender: 'user', content }]);
+    const newUserMsgId = crypto.randomUUID();
+
+    setMessages((m) => {
+      let base = m;
+      if (currentEditId) {
+        const targetIndex = m.findIndex((x) => x.id === currentEditId);
+        if (targetIndex !== -1) {
+          base = m.slice(0, targetIndex);
+        }
+      }
+      return [...base, { id: newUserMsgId, sender: 'user', content }];
+    });
     setStreaming(true);
 
     const res = await fetch('/api/chat', {
@@ -244,6 +250,7 @@ export default function DedicatedChatRoom() {
         message: content,
         temperature,
         editMessageId: currentEditId || undefined,
+        clientMsgId: newUserMsgId,
       }),
     });
 
