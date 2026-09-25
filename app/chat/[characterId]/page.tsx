@@ -209,6 +209,15 @@ export default function DedicatedChatRoom() {
     setShowRagModal(true);
   };
 
+  const handleCopy20Chats = useCallback(() => {
+    const last20 = messages.slice(-20);
+    const text = last20
+      .map((m) => `[${m.sender === 'user' ? 'User' : character?.name || 'AI'}]: ${m.content}`)
+      .join('\n\n');
+    const fullExport = `=== CHAT DEBUG (LAST 20 MESSAGES) ===\nSession: ${activeSessionId}\nCharacter: ${character?.name}\nTime: ${new Date().toLocaleString()}\n\n${text}`;
+    navigator.clipboard.writeText(fullExport);
+  }, [messages, character, activeSessionId]);
+
   const handleSendMessage = async (text: string) => {
     if (!activeSessionId || !text.trim() || streaming) return;
 
@@ -261,12 +270,22 @@ export default function DedicatedChatRoom() {
         const payload = line.replace(/^data:\s*/, '').trim();
         if (!payload || payload === '[DONE]') continue;
         try {
-          const j: { token?: string; error?: string; usage?: { prompt_tokens: number; completion_tokens: number } } = JSON.parse(payload);
+          const j: {
+            token?: string;
+            error?: string;
+            usage?: { prompt_tokens: number; completion_tokens: number; cost_usd: number };
+          } = JSON.parse(payload);
           if (j.error) {
             setMessages((m) => m.map((x) => (x.id === id ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false } : x)));
           } else if (j.token) {
             acc += j.token;
             setMessages((m) => m.map((x) => (x.id === id ? { ...x, content: acc } : x)));
+          } else if (j.usage) {
+            setUsage((prev) => ({
+              promptTokens: prev.promptTokens + j.usage!.prompt_tokens,
+              completionTokens: prev.completionTokens + j.usage!.completion_tokens,
+              totalCost: Number((prev.totalCost + (j.usage!.cost_usd || 0)).toFixed(6)),
+            }));
           }
         } catch {
           /* keepalive */
@@ -318,12 +337,22 @@ export default function DedicatedChatRoom() {
         const payload = line.replace(/^data:\s*/, '').trim();
         if (!payload || payload === '[DONE]') continue;
         try {
-          const j: { token?: string; error?: string } = JSON.parse(payload);
+          const j: {
+            token?: string;
+            error?: string;
+            usage?: { prompt_tokens: number; completion_tokens: number; cost_usd: number };
+          } = JSON.parse(payload);
           if (j.error) {
             setMessages((m) => m.map((x) => (x.id === id ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false, isRegenerating: false } : x)));
           } else if (j.token) {
             acc += j.token;
             setMessages((m) => m.map((x) => (x.id === id ? { ...x, content: acc } : x)));
+          } else if (j.usage) {
+            setUsage((prev) => ({
+              promptTokens: prev.promptTokens + j.usage!.prompt_tokens,
+              completionTokens: prev.completionTokens + j.usage!.completion_tokens,
+              totalCost: Number((prev.totalCost + (j.usage!.cost_usd || 0)).toFixed(6)),
+            }));
           }
         } catch {
           /* keepalive */
@@ -463,6 +492,7 @@ export default function DedicatedChatRoom() {
               isStreaming={streaming}
               onOpenTokenModal={() => setShowTokenModal(true)}
               onOpenStoryJournal={() => setShowStoryModal(true)}
+              onCopy20Chats={handleCopy20Chats}
               editingMessageId={editingMessageId}
               onCancelEdit={() => setEditingMessageId(null)}
             />

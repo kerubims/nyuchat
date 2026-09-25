@@ -36,16 +36,19 @@ model Character {
 }
 
 model ChatSession {
-  id                String        @id @default(uuid())
-  character_id      String
-  title             String
-  global_summary    String?       @db.Text
-  current_state     String?       @db.Text
-  msg_since_summary Int           @default(0)
-  created_at        DateTime      @default(now())
-  updated_at        DateTime      @updatedAt
-  character         Character     @relation(fields: [character_id], references: [id], onDelete: Cascade)
-  messages          ChatMessage[]
+  id                      String        @id @default(uuid())
+  character_id            String
+  title                   String
+  global_summary          String?       @db.Text
+  current_state           String?       @db.Text
+  msg_since_summary       Int           @default(0)
+  total_prompt_tokens     Int           @default(0)
+  total_completion_tokens Int           @default(0)
+  total_cost_usd          Float         @default(0)
+  created_at              DateTime      @default(now())
+  updated_at              DateTime      @updatedAt
+  character               Character     @relation(fields: [character_id], references: [id], onDelete: Cascade)
+  messages                ChatMessage[]
   @@map("chatsession")
 }
 

@@ -31,7 +31,6 @@ export async function POST(req: Request) {
       where: { id: regenerateMessageId },
     });
     if (targetMsg && targetMsg.chat_session_id === sessionId) {
-      // Delete target assistant message and any subsequent messages
       await prisma.chatMessage.deleteMany({
         where: {
           chat_session_id: sessionId,
@@ -39,7 +38,6 @@ export async function POST(req: Request) {
         },
       });
     }
-    // Retrieve the last user message content to trigger generation
     const lastUserMsg = await prisma.chatMessage.findFirst({
       where: { chat_session_id: sessionId, sender: 'user' },
       orderBy: { created_at: 'desc' },
@@ -65,7 +63,6 @@ export async function POST(req: Request) {
         },
       });
     }
-    // Persist edited user message
     await prisma.chatMessage.create({
       data: { chat_session_id: sessionId, sender: 'user', content: userInput },
     });
@@ -75,7 +72,6 @@ export async function POST(req: Request) {
     if (!userInput) {
       return Response.json({ error: 'message required' }, { status: 400 });
     }
-    // Persist new user message
     await prisma.chatMessage.create({
       data: { chat_session_id: sessionId, sender: 'user', content: userInput },
     });
@@ -87,7 +83,6 @@ export async function POST(req: Request) {
     persona: user?.persona ?? 'Unknown user.',
   };
 
-  // Background: mine durable facts from the user's side of the conversation.
   const recentUser = await prisma.chatMessage.findMany({
     where: { chat_session_id: sessionId, sender: 'user' },
     orderBy: { created_at: 'asc' },
@@ -105,11 +100,14 @@ export async function POST(req: Request) {
   const key = process.env.NOVITA_API_KEY;
   if (!key) return Response.json({ error: 'NOVITA_API_KEY not set' }, { status: 500 });
 
-  // Director mode: the user cued a third character without writing dialogue.
   const directorLineText = ctx.director ? await directorLine(userInput) : '';
   if (directorLineText) {
     ctx.messages.push({ role: 'user', content: `${userInput} ${directorLineText}` });
   }
+
+  // Calculate prompt token estimate (system prompt + message context)
+  const fullPromptText = ctx.system + JSON.stringify(ctx.messages);
+  const promptTokensEst = Math.ceil(fullPromptText.length / 3.8);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -118,6 +116,9 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
 
       let full = '';
+      let promptTokens = promptTokensEst;
+      let completionTokens = 0;
+
       try {
         if (directorLineText) send({ token: directorLineText + ' ' });
         const res = await fetch(NOVITA_URL, {
@@ -130,6 +131,7 @@ export async function POST(req: Request) {
             top_p: 0.95,
             max_tokens: ctx.director ? 100 : 320,
             stream: true,
+            stream_options: { include_usage: true },
           }),
         });
 
@@ -156,16 +158,21 @@ export async function POST(req: Request) {
             const payload = s.slice(5).trim();
             if (payload === '[DONE]') continue;
             try {
-              const j: {
+              const j = JSON.parse(payload) as {
                 choices?: { delta?: { content?: string }; finish_reason?: string }[];
-              } = JSON.parse(payload);
+                usage?: { prompt_tokens?: number; completion_tokens?: number };
+              };
+              if (j.usage) {
+                if (j.usage.prompt_tokens) promptTokens = j.usage.prompt_tokens;
+                if (j.usage.completion_tokens) completionTokens = j.usage.completion_tokens;
+              }
               const delta = j.choices?.[0]?.delta?.content;
               if (delta) {
                 full += delta;
                 send({ token: delta });
               }
             } catch {
-              /* keepalive / partial — ignore */
+              /* keepalive / partial */
             }
           }
         }
@@ -173,13 +180,34 @@ export async function POST(req: Request) {
         send({ error: e instanceof Error ? e.message : 'stream failed' });
       }
 
+      if (!completionTokens) {
+        completionTokens = Math.ceil(full.length / 3.8);
+      }
+
+      const costUSD = Number(((promptTokens * 0.00000005) + (completionTokens * 0.00000008)).toFixed(6));
+
       if (full.trim()) {
         await prisma.chatMessage.create({
           data: { chat_session_id: sessionId, sender: 'assistant', content: full },
         });
         await prisma.chatSession.update({
           where: { id: sessionId },
-          data: { msg_since_summary: { increment: 1 }, updated_at: new Date() },
+          data: {
+            msg_since_summary: { increment: 1 },
+            total_prompt_tokens: { increment: promptTokens },
+            total_completion_tokens: { increment: completionTokens },
+            total_cost_usd: { increment: costUSD },
+            updated_at: new Date(),
+          },
+        });
+
+        // Send usage summary event to client
+        send({
+          usage: {
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            cost_usd: costUSD,
+          },
         });
       }
 

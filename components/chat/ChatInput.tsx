@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { PaperPlaneRight, Lightbulb, Translate, BookOpen, Coins } from '@phosphor-icons/react';
+import { PaperPlaneRight, Lightbulb, Translate, BookOpen, Coins, Copy, Check } from '@phosphor-icons/react';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -11,6 +11,7 @@ interface ChatInputProps {
   isLoadingSuggestions?: boolean;
   onOpenTokenModal?: () => void;
   onOpenStoryJournal?: () => void;
+  onCopy20Chats?: () => void;
   editingMessageId?: string | null;
   onCancelEdit?: () => void;
 }
@@ -23,11 +24,13 @@ export function ChatInput({
   isLoadingSuggestions,
   onOpenTokenModal,
   onOpenStoryJournal,
+  onCopy20Chats,
   editingMessageId,
   onCancelEdit,
 }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [isTranslatingInput, setIsTranslatingInput] = useState(false);
+  const [copied20, setCopied20] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea
@@ -78,6 +81,14 @@ export function ChatInput({
       setIsTranslatingInput(false);
     }
   }, [input, isStreaming, isTranslatingInput]);
+
+  const handleCopy20 = () => {
+    if (onCopy20Chats) {
+      onCopy20Chats();
+      setCopied20(true);
+      setTimeout(() => setCopied20(false), 2000);
+    }
+  };
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -143,6 +154,18 @@ export function ChatInput({
           >
             <Coins size={14} className="text-emerald-400" />
             <span>Token Usage</span>
+          </button>
+        )}
+
+        {onCopy20Chats && (
+          <button
+            type="button"
+            onClick={handleCopy20}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-zinc-900 border border-zinc-800 text-purple-300 hover:text-purple-100 hover:bg-purple-950/60 transition-colors shrink-0"
+            title="Copy last 20 chat messages for debugging"
+          >
+            {copied20 ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} className="text-purple-400" />}
+            <span>{copied20 ? 'Copied 20!' : 'Copy 20 Chats'}</span>
           </button>
         )}
       </div>
