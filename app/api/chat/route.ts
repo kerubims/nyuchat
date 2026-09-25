@@ -225,7 +225,7 @@ export async function POST(req: Request) {
       }
 
       if (full.trim()) {
-        const cleaned = ctx.director ? await directorLine(full) : full;
+        const cleaned = ctx.director ? await directorLine(full, session.character.name) : full;
         await prisma.chatMessage.create({
           data: {
             chat_session_id: sessionId,
