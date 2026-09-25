@@ -294,6 +294,7 @@ export default function DedicatedChatRoom() {
     }
     setMessages((m) => m.map((x) => (x.id === id ? { ...x, isStreaming: false } : x)));
     setStreaming(false);
+    void loadSessions(); // pick up auto-title rename
   };
 
   const handleRegenerate = async (assistantMessageId: string) => {

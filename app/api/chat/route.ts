@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { assemble } from '@/lib/rag';
 import { extractAndStoreFacts, directorLine, MODEL_ID } from '@/lib/memory';
+import { updateSceneState, generateTitle } from '@/lib/state';
 
 // Streaming chat completion (SSE). PRD §6.6: Stheno TTFT < 1.0s.
 const NOVITA_URL = 'https://api.novita.ai/v3/openai/chat/completions';
@@ -100,6 +101,11 @@ export async function POST(req: Request) {
   const key = process.env.NOVITA_API_KEY;
   if (!key) return Response.json({ error: 'NOVITA_API_KEY not set' }, { status: 500 });
 
+  // Track whether this is the first user exchange (for auto-title).
+  const userMsgCount = await prisma.chatMessage.count({
+    where: { chat_session_id: sessionId, sender: 'user' },
+  });
+
   const directorLineText = ctx.director ? await directorLine(userInput) : '';
   if (directorLineText) {
     ctx.messages.push({ role: 'user', content: `${userInput} ${directorLineText}` });
@@ -119,9 +125,10 @@ export async function POST(req: Request) {
       let promptTokens = promptTokensEst;
       let completionTokens = 0;
 
-      try {
-        if (directorLineText) send({ token: directorLineText + ' ' });
-        const res = await fetch(NOVITA_URL, {
+      // Novita occasionally returns transient 400/5xx; retry once before erroring.
+      let res: Response | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const r = await fetch(NOVITA_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
           body: JSON.stringify({
@@ -134,15 +141,29 @@ export async function POST(req: Request) {
             stream_options: { include_usage: true },
           }),
         });
-
-        if (!res.ok || !res.body) {
-          const t = await res.text().catch(() => '');
-          send({ error: `Novita ${res.status}: ${t.slice(0, 160)}` });
+        if (r.ok && r.body) {
+          res = r;
+          break;
+        }
+        const t = await r.text().catch(() => '');
+        const transient = r.status === 429 || r.status >= 500 || r.status === 400;
+        if (!transient) {
+          send({ error: `Novita ${r.status}: ${t.slice(0, 160)}` });
           controller.close();
           return;
         }
+        if (attempt === 1) {
+          send({ error: `Novita ${r.status} (retried): ${t.slice(0, 160)}` });
+          controller.close();
+          return;
+        }
+        await new Promise((ok) => setTimeout(ok, 700));
+      }
+      if (!res) return;
 
-        const reader = res.body.getReader();
+      try {
+        if (directorLineText) send({ token: directorLineText + ' ' });
+        const reader = res.body!.getReader();
         const dec = new TextDecoder();
         let buf = '';
 
@@ -200,6 +221,21 @@ export async function POST(req: Request) {
             updated_at: new Date(),
           },
         });
+
+        // Post-turn housekeeping (fire-and-forget, never blocks the stream):
+        // scene-state extraction + one-shot session auto-title.
+        void updateSceneState(sessionId, session.current_state, userInput, full).catch((e) =>
+          console.error('[state] update failed:', e instanceof Error ? e.message : e)
+        );
+        if (userMsgCount === 1) {
+          void generateTitle(session.character.name, userInput, full)
+            .then((t) =>
+              t
+                ? prisma.chatSession.update({ where: { id: sessionId }, data: { title: t } })
+                : null
+            )
+            .catch((e) => console.error('[title] failed:', e instanceof Error ? e.message : e));
+        }
 
         // Send usage summary event to client
         send({

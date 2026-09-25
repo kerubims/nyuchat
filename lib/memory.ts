@@ -145,7 +145,7 @@ export interface SthenoOptions {
   stream?: boolean;
 }
 
-/** Single non-streaming Stheno completion. */
+/** Single non-streaming Stheno completion. 1 retry on transient 5xx/parse errors. */
 export async function callStheno(
   userPrompt: string,
   temperature = 0.8,
@@ -154,26 +154,44 @@ export async function callStheno(
 ): Promise<string> {
   const key = process.env.NOVITA_API_KEY;
   if (!key) throw new Error('NOVITA_API_KEY not set');
-  const res = await fetch(NOVITA_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: MODEL_ID,
-      messages: [
-        ...(system ? [{ role: 'system', content: system }] : []),
-        { role: 'user', content: userPrompt },
-      ],
-      temperature,
-      max_tokens: maxTokens,
-      stream: false,
-    }),
+  const body = JSON.stringify({
+    model: MODEL_ID,
+    messages: [
+      ...(system ? [{ role: 'system', content: system }] : []),
+      { role: 'user', content: userPrompt },
+    ],
+    temperature,
+    max_tokens: maxTokens,
+    stream: false,
   });
-  if (!res.ok) {
-    const t = await res.text().catch(() => '');
-    throw new Error(`Novita ${res.status}: ${t.slice(0, 200)}`);
+
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(NOVITA_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body,
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => '');
+        // 400 often carries a non-JSON upstream body; 429/5xx are transient.
+        const transient = res.status === 429 || res.status >= 500 || res.status === 400;
+        if (!transient || attempt === 1) {
+          throw new Error(`Novita ${res.status}: ${t.slice(0, 200)}`);
+        }
+        await new Promise((r) => setTimeout(r, 700));
+        continue;
+      }
+      const j = (await res.json()) as { choices: { message: { content?: string } }[] };
+      return j.choices?.[0]?.message?.content ?? '';
+    } catch (e) {
+      lastErr = e;
+      if (attempt === 1) break;
+      await new Promise((r) => setTimeout(r, 700));
+    }
   }
-  const j = (await res.json()) as { choices: { message: { content?: string } }[] };
-  return j.choices?.[0]?.message?.content ?? '';
+  throw lastErr instanceof Error ? lastErr : new Error('Novita call failed');
 }
 
 export async function callSthenoJson<T>(userPrompt: string): Promise<T | null> {
@@ -181,7 +199,8 @@ export async function callSthenoJson<T>(userPrompt: string): Promise<T | null> {
     const txt = await callStheno(userPrompt, 0.2, 400, 'You are a JSON-only extraction assistant. Output valid JSON, nothing else.');
     const m = txt.match(/\{[\s\S]*\}/);
     return m ? (JSON.parse(m[0]) as T) : null;
-  } catch {
+  } catch (e) {
+    console.error('[memory] extraction call failed:', e instanceof Error ? e.message : e);
     return null;
   }
 }
