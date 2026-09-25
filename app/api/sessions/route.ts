@@ -1,7 +1,16 @@
 import { prisma } from '@/lib/db';
-import { extractAndStoreFacts } from '@/lib/memory';
 
 export async function GET() {
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE chatsession ADD COLUMN IF NOT EXISTS total_prompt_tokens INT DEFAULT 0;
+      ALTER TABLE chatsession ADD COLUMN IF NOT EXISTS total_completion_tokens INT DEFAULT 0;
+      ALTER TABLE chatsession ADD COLUMN IF NOT EXISTS total_cost_usd DOUBLE PRECISION DEFAULT 0;
+    `);
+  } catch (e) {
+    console.error('Auto migration failed:', e);
+  }
+
   const sessions = await prisma.chatSession.findMany({
     include: {
       character: { select: { id: true, name: true, avatar_url: true } },
@@ -25,7 +34,6 @@ export async function POST(req: Request) {
     },
   });
 
-  // Seed the greeting so the RAG window has context from turn one
   await prisma.chatMessage.create({
     data: { chat_session_id: session.id, sender: 'assistant', content: character.greeting },
   });
