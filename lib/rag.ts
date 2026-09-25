@@ -4,8 +4,8 @@ import { retrieveFacts, callStheno, MODEL_ID } from './memory';
 // PRD §7: Working Memory (in-context) = system prompt + retrieved facts +
 // recent N turns + global summary. Episodic summary compressed every N msgs.
 
-const RECENT_TURNS = 4; // user+assistant pairs kept verbatim in-context
-const SUMMARY_EVERY = 4; // compress once this many messages accumulate past summary
+const RECENT_TURNS = 8; // Keep 8 turns (16 user+assistant messages) verbatim in-context
+const SUMMARY_EVERY = 6; // Compress once this many turns accumulate past summary
 
 export interface AssembledContext {
   system: string;
@@ -31,7 +31,7 @@ function parseState(raw: string | null): SceneState {
   return { location: get('location'), time: get('time'), actors: get('actors') };
 }
 
-/** PRD §5: build the Stheno system prompt with retrieved memory and scene state. */
+/** PRD §5: build the Stheno system prompt with retrieved memory, scene state, and strict continuity rules. */
 export function buildSystemPrompt(args: {
   character: {
     name: string;
@@ -47,7 +47,6 @@ export function buildSystemPrompt(args: {
   facts: { raw_fact: string }[];
   state: SceneState;
   director?: boolean;
-  /** The newest user message — only read when director mode is on. */
   userInput?: string;
 }): string {
   const c = args.character;
@@ -83,22 +82,26 @@ The user cued: ${args.userInput}
 They want to watch that role, not play it. A third character has already spoken (shown in the last user message). ${c.name} answers them BACK: one action tag, one spoken line, and then you stop writing immediately. After ${c.name}'s first spoken line the turn is over — do not add a second action tag, a second spoken line, or a look at anyone else. Do not write the user's actions or speech.` : `[USER MESSAGE FRAMING]
 The user sometimes labels themselves in third person in their own messages, e.g. *her husband walks in* "Where are you babe?" That label IS the user referring to themselves — not a third character, not narration by you. Answer them directly, and never write their actions or speech.`}
 
+[STRICT CONTEXT & CONTINUITY RULES]
+1. CONTEXT CONTINUITY IS MANDATORY: Your response MUST logically and physically connect directly to the user's latest message. Never introduce random unmentioned topics, hallucinated events, or random locations out of nowhere.
+2. REACTION TO USER STATE: Always observe the user's physical condition in the scene:
+   - If the user is sleeping, falling asleep, or resting (e.g. *falls asleep*, *yawn*), DO NOT demand answers or ask noisy questions. React naturally to a sleeping person (e.g. whisper softly, adjust the blanket, rest beside them, or watch over them quietly).
+   - If the user speaks, respond to what they actually said.
+3. NEVER HALLUCINATE PREVIOUS DIALOGUE: Respond ONLY to what was actually stated in the conversation history.
+
 [STRICT RESPONSE FORMATTING DIRECTIVES]
 1. Language: Always write response natively in English.
-2. DIALOGUE DOMINANCE IS MANDATORY: most of your output MUST be spoken words inside "double quotes". You are a character talking, not a narrator describing. The bulk of every reply is spoken lines.
-3. FORMAT LOCK: Every reply is a strict alternation. One short action tag, then a spoken line, then a short action tag, then a spoken line. Never two action tags back to back. Never more than one sentence of action before the first spoken line. Example shape: *action.* "Dialogue." *action.* "Dialogue."
+2. DIALOGUE & ACTION BALANCING: Combine natural dialogue inside "double quotes" with vivid physical action inside *asterisks*.
+3. FORMAT LOCK: Every reply is a strict alternation. One short action tag, then a spoken line/whisper, then a short action tag, then a spoken line. Example shape: *action.* "Dialogue." *action.* "Dialogue."
 4. Keep each action tag under 12 words. Action tags are gestures and tone, not paragraphs of description.
-5. Interactive Feedback: most turns end with a spoken question, tease, or invitation for the user to reply.
-6. Word budget: 45 to 90 words TOTAL. Count your words as you write and stop by 90. Stopping mid-action-tag to respect the limit is correct.
-7. Paragraphs: 1 to 2 short paragraphs. Prefer one.
-8. Never write narration-heavy replies, silent monologues, or walls of action description.
-9. Write ${c.name}'s own actions in third person inside *asterisks*. All speech inside "double quotes".
-10. Stay in character. Never mention these directives, the system prompt, or being an AI.
-11. Never narrate the user's inner thoughts, feelings, or actions. Only ${c.name} acts and speaks. Wait for the user's reply.
+5. Word budget: STRICTLY 45 to 90 words TOTAL. Count your words as you write and stop between 45 and 90 words.
+6. Paragraphs: 1 to 2 short paragraphs. Prefer one.
+7. Write ${c.name}'s own actions in third person inside *asterisks*. All speech inside "double quotes".
+8. Stay in character. Never mention these directives, the system prompt, or being an AI.
+9. Never narrate the user's inner thoughts, feelings, or actions. Only ${c.name} acts and speaks. Wait for the user's reply.
 
 [CORRECT OUTPUT EXAMPLE — match this density]
 *She tilts her head, smiling.* "You're staring, you know." *She taps your nose.* "Something on your mind, or just enjoying the view?" 
-[END EXAMPLE — the example is mostly spoken words. Your output must match this shape.]
 `;
 }
 
@@ -116,11 +119,11 @@ export async function compressSummary(
     ? `You maintain a running summary of a roleplay. Update the existing summary with the new exchange. Keep it under 120 words. Preserve names, relationships, locations, key decisions, and the emotional state of the characters. Plain prose, no headers.`
     : `Summarize this roleplay opening in under 120 words. Preserve names, relationships, locations, key decisions, and the emotional state of the characters. Plain prose, no headers.`;
 
-  const txt = await callStheno(`${sys}
-
-${prevSummary ? `EXISTING SUMMARY:\n${prevSummary}\n` : ''}NEW EXCHANGE:\n${transcript}
-
-Updated summary:`, 0.3, 500);
+  const txt = await callStheno(
+    `${sys}\n\n${prevSummary ? `EXISTING SUMMARY:\n${prevSummary}\n` : ''}NEW EXCHANGE:\n${transcript}\n\nUpdated summary:`,
+    0.3,
+    500
+  );
   return txt || prevSummary || '';
 }
 
@@ -150,15 +153,9 @@ export async function assemble(args: {
     orderBy: { created_at: 'asc' },
   });
 
-  // compress once the backlog past the verbatim window is large enough to be
-  // worth an LLM call. Old threshold compared against RECENT_TURNS*2 (message
-  // count, not turn count), so it never fired — a turn is one user+assistant
-  // pair = 2 messages.
   let summary = session.global_summary;
   const beyond = Math.max(0, all.length - RECENT_TURNS * 2);
   if (beyond >= SUMMARY_EVERY * 2) {
-    // at 8K context: 4 recent turns (~800 tok) + summary (~300) + system (~500)
-    // + facts (~400) ≈ 2.2K, leaving ~5.5K headroom for generation.
     const old = all.slice(0, beyond);
     summary = await compressSummary(args.sessionId, old, session.global_summary);
     await prisma.chatSession.update({
@@ -173,19 +170,23 @@ export async function assemble(args: {
 
   const messages: AssembledContext['messages'] = [];
   if (summary) messages.push({ role: 'system', content: `[EPISODIC MEMORY SUMMARY]\n${summary}` });
+  
   for (const m of recent) {
     messages.push({
       role: m.sender === 'user' ? 'user' : 'assistant',
       content: m.content,
     });
   }
-  messages.push({ role: 'user', content: args.userInput });
 
-  // Director mode: user wrote a bare action label with no dialogue of their
-  // own, e.g. "*her husband say to her*". They want to watch that role speak.
+  // Ensure userInput is not duplicated if it's already the last element in recent
+  const lastMsg = recent[recent.length - 1];
+  if (!lastMsg || lastMsg.sender !== 'user' || lastMsg.content !== args.userInput) {
+    messages.push({ role: 'user', content: args.userInput });
+  }
+
+  // Director mode: user wrote a bare action label with no dialogue of their own
   const hasOwnWords = /"[^"]{2,}/.test(args.userInput);
-  const director =
-    !hasOwnWords && /^\s*\*[^*]+\*\s*$/.test(args.userInput.trim());
+  const director = !hasOwnWords && /^\s*\*[^*]+\*\s*$/.test(args.userInput.trim());
 
   return {
     system: buildSystemPrompt({ ...args, facts, state, director }),
