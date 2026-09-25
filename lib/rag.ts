@@ -88,8 +88,8 @@ Location: ${args.state.location} | Time: ${args.state.time} | Actors: ${args.sta
 Name: ${args.user.name} | User Persona: ${args.user.persona}
 
 ${args.director ? `[DIRECTOR MODE]
-The user cued: ${args.userInput}
-They want to watch that role, not play it. A third character has already spoken (shown in the last user message). ${c.name} answers them BACK: one action tag, one spoken line, and then you stop writing immediately. After ${c.name}'s first spoken line the turn is over — do not add a second action tag, a second spoken line, or a look at anyone else. Do not write the user's actions or speech.` : `[USER MESSAGE FRAMING]
+The user performed an action without spoken dialogue: "${args.userInput}".
+React directly to their physical action as ${c.name}. Describe your immediate physical reaction in *asterisks* and your spoken response in "quotes".` : `[USER MESSAGE FRAMING]
 The user sometimes labels themselves in third person in their own messages, e.g. *her husband walks in* "Where are you babe?" That label IS the user referring to themselves — not a third character, not narration by you. Answer them directly, and never write their actions or speech.`}
 
 [STRICT CONTEXT & CONTINUITY RULES]

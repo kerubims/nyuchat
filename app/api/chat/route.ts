@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { assemble } from '@/lib/rag';
-import { extractAndStoreFacts, directorLine, MODEL_ID } from '@/lib/memory';
+import { extractAndStoreFacts, MODEL_ID } from '@/lib/memory';
 import { updateSceneState, generateTitle } from '@/lib/state';
 
 // Streaming chat completion (SSE). PRD §6.6: Stheno TTFT < 1.0s.
@@ -161,7 +161,7 @@ export async function POST(req: Request) {
     stream: true,
     stream_options: { include_usage: true },
     temperature: Math.max(0.1, Math.min(1.5, temperature)),
-    max_tokens: 450,
+    max_tokens: 1000,
   };
 
   const nRes = await fetch(NOVITA_URL, {
@@ -225,7 +225,7 @@ export async function POST(req: Request) {
       }
 
       if (full.trim()) {
-        const cleaned = ctx.director ? await directorLine(full, session.character.name) : full;
+        const cleaned = full;
         const savedMsg = await prisma.chatMessage.create({
           data: {
             chat_session_id: sessionId,
