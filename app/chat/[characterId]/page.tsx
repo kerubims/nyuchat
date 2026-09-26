@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'motion/react';
-import { SidebarSimple, Brain, Coins, BookOpen, Circle } from '@phosphor-icons/react';
+import { SidebarSimple, Brain, Coins, BookOpen, Circle, PencilSimple } from '@phosphor-icons/react';
 
 import { SessionSidebar } from '@/components/chat/SessionSidebar';
 import { ChatMessage } from '@/components/chat/ChatMessage';
@@ -272,46 +273,49 @@ export default function DedicatedChatRoom() {
     let currentId = id;
     setMessages((m) => [...m, { id, sender: 'assistant', content: '', isStreaming: true }]);
 
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split('\n\n');
-      buf = lines.pop() ?? '';
-      for (const line of lines) {
-        const payload = line.replace(/^data:\s*/, '').trim();
-        if (!payload || payload === '[DONE]') continue;
-        try {
-          const j: {
-            token?: string;
-            messageId?: string;
-            error?: string;
-            usage?: { prompt_tokens: number; completion_tokens: number; cost_usd: number };
-          } = JSON.parse(payload);
-          if (j.error) {
-            setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false } : x)));
-          } else if (j.messageId) {
-            const targetId = j.messageId;
-            setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, id: targetId } : x)));
-            currentId = targetId;
-          } else if (j.token) {
-            acc += j.token;
-            setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: acc } : x)));
-          } else if (j.usage) {
-            setUsage((prev) => ({
-              promptTokens: prev.promptTokens + j.usage!.prompt_tokens,
-              completionTokens: prev.completionTokens + j.usage!.completion_tokens,
-              totalCost: Number((prev.totalCost + (j.usage!.cost_usd || 0)).toFixed(6)),
-            }));
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          const payload = line.replace(/^data:\s*/, '').trim();
+          if (!payload || payload === '[DONE]') continue;
+          try {
+            const j: {
+              token?: string;
+              messageId?: string;
+              error?: string;
+              usage?: { prompt_tokens: number; completion_tokens: number; cost_usd: number };
+            } = JSON.parse(payload);
+            if (j.error) {
+              setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false } : x)));
+            } else if (j.messageId) {
+              const targetId = j.messageId;
+              setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, id: targetId } : x)));
+              currentId = targetId;
+            } else if (j.token) {
+              acc += j.token;
+              setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: acc } : x)));
+            } else if (j.usage) {
+              setUsage((prev) => ({
+                promptTokens: prev.promptTokens + j.usage!.prompt_tokens,
+                completionTokens: prev.completionTokens + j.usage!.completion_tokens,
+                totalCost: Number((prev.totalCost + (j.usage!.cost_usd || 0)).toFixed(6)),
+              }));
+            }
+          } catch {
+            /* keepalive */
           }
-        } catch {
-          /* keepalive */
         }
       }
+    } finally {
+      setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, isStreaming: false, isRegenerating: false } : x)));
+      setStreaming(false);
+      void loadSessions(); // pick up auto-title rename
     }
-    setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, isStreaming: false } : x)));
-    setStreaming(false);
-    void loadSessions(); // pick up auto-title rename
   };
 
   const handleRegenerate = async (assistantMessageId: string) => {
@@ -480,6 +484,15 @@ export default function DedicatedChatRoom() {
               <Brain size={16} className="text-purple-400" />
               <span className="hidden sm:inline">Memory</span>
             </button>
+
+            <Link
+              href={`/characters/${character.id}/edit`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 text-xs font-medium transition-colors"
+              title="Edit Persona Karakter"
+            >
+              <PencilSimple size={16} className="text-purple-400" />
+              <span className="hidden sm:inline">Edit Persona</span>
+            </Link>
           </div>
         </header>
 
