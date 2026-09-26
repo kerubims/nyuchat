@@ -29,7 +29,7 @@ JSON FIELD SPECIFICATION:
   "persona": "Extensive psychological profile: core traits, speech patterns, emotional triggers, physical appearance, internal conflicts, and subtle habits. Write a rich, detailed description (at least 2-3 detailed paragraphs).",
   "greeting": "*Immersive opening scene setter describing physical state, atmosphere, and body language.* \\nSpoken opening line directly to {{user}}.",
   "backstory": "Rich narrative history: childhood origins, pivotal turning points, secret motivations, family/past trauma, and key relationships shaping present behavior (at least 2-3 detailed paragraphs).",
-  "key_memories": "- Detailed Memory 1: Formative childhood event\\n- Detailed Memory 2: Defining emotional moment\\n- Detailed Memory 3: Hidden secret or trauma",
+  "key_memories": "- Fact 1: Age, role, and current goal/secret\\n- Fact 2: Exact relationship dynamic with {{user}}\\n- Fact 3: Secret feelings toward {{user}}\\n- Fact 4: Defining past event/trauma shaping their behavior\\n- Fact 5: What triggers vulnerability or emotional closeness",
   "scenario": "Rich starting setting, current atmosphere, location details, and initial relationship dynamic with {{user}}.",
   "response_directives": "1. Keep responses dialogue-dominant (70% dialogue, 30% action tags).\\n2. Maintain concise length per turn: 2-4 lines total.\\n3. Use natural hesitation (ellipsis..., em-dashes —, trailing thoughts) when flustered or processing.\\n4. Format actions in *asterisks* and spoken dialogue as plain text.",
   "example_dialogue": "User: {{user}}: What are you doing here?\\n{{char}}: *Looks up startled, a faint blush appearing.*\\nOh— I... I was just thinking about earlier. I didn't hear you come in."

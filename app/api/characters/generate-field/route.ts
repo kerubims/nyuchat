@@ -25,7 +25,7 @@ export async function POST(req: Request) {
         instruction = 'Write an immersive opening greeting message for the character starting a chat with {{user}}. Format: Start with an action tag in *asterisks*, followed by spoken dialogue in "quotes". E.g., *She tilts her head, watching you closely.* "Hello..."';
         break;
       case 'key_memories':
-        instruction = 'Write a bulleted list (- Memory 1...) of 3-5 important facts, secrets, past traumatic events, or memories the character must always remember.';
+        instruction = 'Write a clean bulleted list (- Fact/Memory...) of 4-5 core anchor facts and relationship dynamics the character ALWAYS remembers.\nMUST COVER SPECIFICALLY:\n1. Character\'s age, role, and current secret or goal.\n2. Exact relationship dynamic with {{user}} (e.g. childhood friend, mentor, servant, superior).\n3. How {{char}} secretly feels about {{user}} under their surface demeanor.\n4. A defining past event or secret that influences how {{char}} acts toward {{user}}.\n5. What triggers {{char}} to open up, blush, or show vulnerability.';
         break;
       case 'scenario':
         instruction = 'Write a vivid paragraph describing the current setting, atmosphere, location, time of day, and initial situation where the roleplay with {{user}} begins.';
