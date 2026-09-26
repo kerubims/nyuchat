@@ -283,11 +283,14 @@ export default function DedicatedChatRoom() {
         try {
           const j: {
             token?: string;
+            messageId?: string;
             error?: string;
             usage?: { prompt_tokens: number; completion_tokens: number; cost_usd: number };
           } = JSON.parse(payload);
           if (j.error) {
             setMessages((m) => m.map((x) => (x.id === id ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false } : x)));
+          } else if (j.messageId) {
+            setMessages((m) => m.map((x) => (x.id === id ? { ...x, id: j.messageId! } : x)));
           } else if (j.token) {
             acc += j.token;
             setMessages((m) => m.map((x) => (x.id === id ? { ...x, content: acc } : x)));
