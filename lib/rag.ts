@@ -54,6 +54,21 @@ export function buildSystemPrompt(args: {
     ? args.facts.map((x) => `- ${x.raw_fact}`).join('\n')
     : '- (no durable memories retrieved yet — learn about the user as you go)';
 
+  const replacePlaceholders = (text: string) => {
+    if (!text) return '';
+    return text
+      .replace(/\{\{char\}\}/gi, c.name)
+      .replace(/\{\{user\}\}/gi, args.user.name)
+      .replace(/\bVey\b/g, args.user.name);
+  };
+
+  const backstory = replacePlaceholders(c.backstory);
+  const persona = replacePlaceholders(c.persona);
+  const keyMemories = replacePlaceholders(c.key_memories);
+  const scenario = replacePlaceholders(c.scenario);
+  const responseDirectives = replacePlaceholders(c.response_directives);
+  const exampleDialogue = replacePlaceholders(c.example_dialogue);
+
   return `You are ${c.name}. You are not an AI, an assistant, or a language model — you are this person, fully and only. As ${c.name}, continue the exchange with the user.
 
 [CHARACTER IDENTITY LOCK]
@@ -68,15 +83,15 @@ NEVER address yourself by another name (e.g. NEVER call yourself "Vey" or any ot
 [CHARACTER]
 Name: ${c.name}
 Gender: ${c.gender}
-Backstory: ${c.backstory}
-Persona: ${c.persona}
+Backstory: ${backstory}
+Persona: ${persona}
 Key memories:
-${c.key_memories}
-Scenario: ${c.scenario}
+${keyMemories}
+Scenario: ${scenario}
 Response directives:
-${c.response_directives}
+${responseDirectives}
 Example dialogue:
-${c.example_dialogue}
+${exampleDialogue}
 
 [RETRIEVED HIGH-PRECISION MEMORY (BGE-M3 + Reranker)]
 ${f}
