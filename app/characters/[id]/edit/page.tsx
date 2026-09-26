@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, FloppyDisk, Trash } from '@phosphor-icons/react';
+import { ArrowLeft, FloppyDisk, Trash, MagicWand } from '@phosphor-icons/react';
 
 export default function EditCharacter() {
   const router = useRouter();
@@ -25,6 +25,7 @@ export default function EditCharacter() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [fieldLoading, setFieldLoading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!id) return;
@@ -54,6 +55,26 @@ export default function EditCharacter() {
       }
     })();
   }, [id, router]);
+
+  const handleGenerateField = async (field: string) => {
+    setFieldLoading((prev) => ({ ...prev, [field]: true }));
+    try {
+      const res = await fetch('/api/characters/generate-field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, context: formData }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (data.content) {
+        setFormData((prev) => ({ ...prev, [field]: data.content }));
+      }
+    } catch (err) {
+      alert(`Failed to generate ${field}: ${err}`);
+    } finally {
+      setFieldLoading((prev) => ({ ...prev, [field]: false }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,19 +182,43 @@ export default function EditCharacter() {
           />
         </div>
 
+        {/* Persona */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-zinc-300">Persona & Personality *</label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-zinc-300">Persona & Personality *</label>
+            <button
+              type="button"
+              onClick={() => handleGenerateField('persona')}
+              disabled={fieldLoading['persona']}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+            >
+              <MagicWand size={12} />
+              <span>{fieldLoading['persona'] ? 'Generating...' : 'AI Assist'}</span>
+            </button>
+          </div>
           <textarea
             value={formData.persona}
             onChange={(e) => setFormData({ ...formData, persona: e.target.value })}
-            rows={4}
+            rows={5}
             required
             className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none font-mono"
           />
         </div>
 
+        {/* Greeting */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-zinc-300">Greeting Message *</label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-zinc-300">Greeting Message *</label>
+            <button
+              type="button"
+              onClick={() => handleGenerateField('greeting')}
+              disabled={fieldLoading['greeting']}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+            >
+              <MagicWand size={12} />
+              <span>{fieldLoading['greeting'] ? 'Generating...' : 'AI Assist'}</span>
+            </button>
+          </div>
           <textarea
             value={formData.greeting}
             onChange={(e) => setFormData({ ...formData, greeting: e.target.value })}
@@ -183,26 +228,116 @@ export default function EditCharacter() {
           />
         </div>
 
+        {/* Backstory & Scenario */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-300">Backstory</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-zinc-300">Backstory</label>
+              <button
+                type="button"
+                onClick={() => handleGenerateField('backstory')}
+                disabled={fieldLoading['backstory']}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+              >
+                <MagicWand size={12} />
+                <span>{fieldLoading['backstory'] ? 'Generating...' : 'AI Assist'}</span>
+              </button>
+            </div>
             <textarea
               value={formData.backstory}
               onChange={(e) => setFormData({ ...formData, backstory: e.target.value })}
-              rows={3}
+              rows={4}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-300">Scenario & Setting</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-zinc-300">Scenario & Setting</label>
+              <button
+                type="button"
+                onClick={() => handleGenerateField('scenario')}
+                disabled={fieldLoading['scenario']}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+              >
+                <MagicWand size={12} />
+                <span>{fieldLoading['scenario'] ? 'Generating...' : 'AI Assist'}</span>
+              </button>
+            </div>
             <textarea
               value={formData.scenario}
               onChange={(e) => setFormData({ ...formData, scenario: e.target.value })}
-              rows={3}
+              rows={4}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none"
             />
           </div>
+        </div>
+
+        {/* Key Memories & Response Directives */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-zinc-300">Key Memories</label>
+              <button
+                type="button"
+                onClick={() => handleGenerateField('key_memories')}
+                disabled={fieldLoading['key_memories']}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+              >
+                <MagicWand size={12} />
+                <span>{fieldLoading['key_memories'] ? 'Generating...' : 'AI Assist'}</span>
+              </button>
+            </div>
+            <textarea
+              value={formData.key_memories}
+              onChange={(e) => setFormData({ ...formData, key_memories: e.target.value })}
+              rows={4}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none font-mono"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-zinc-300">Response Directives</label>
+              <button
+                type="button"
+                onClick={() => handleGenerateField('response_directives')}
+                disabled={fieldLoading['response_directives']}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+              >
+                <MagicWand size={12} />
+                <span>{fieldLoading['response_directives'] ? 'Generating...' : 'AI Assist'}</span>
+              </button>
+            </div>
+            <textarea
+              value={formData.response_directives}
+              onChange={(e) => setFormData({ ...formData, response_directives: e.target.value })}
+              rows={4}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none font-mono"
+            />
+          </div>
+        </div>
+
+        {/* Example Dialogue */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-zinc-300">Example Dialogue</label>
+            <button
+              type="button"
+              onClick={() => handleGenerateField('example_dialogue')}
+              disabled={fieldLoading['example_dialogue']}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+            >
+              <MagicWand size={12} />
+              <span>{fieldLoading['example_dialogue'] ? 'Generating...' : 'AI Assist'}</span>
+            </button>
+          </div>
+          <textarea
+            value={formData.example_dialogue}
+            onChange={(e) => setFormData({ ...formData, example_dialogue: e.target.value })}
+            rows={4}
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none font-mono"
+          />
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-zinc-900">

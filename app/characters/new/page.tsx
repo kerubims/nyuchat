@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkle, ArrowLeft, Check, FloppyDisk } from '@phosphor-icons/react';
+import { Sparkle, ArrowLeft, FloppyDisk, MagicWand } from '@phosphor-icons/react';
 
 export default function NewCharacter() {
   const router = useRouter();
@@ -24,6 +24,27 @@ export default function NewCharacter() {
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showGenModal, setShowGenModal] = useState(false);
+  const [fieldLoading, setFieldLoading] = useState<Record<string, boolean>>({});
+
+  const handleGenerateField = async (field: string) => {
+    setFieldLoading((prev) => ({ ...prev, [field]: true }));
+    try {
+      const res = await fetch('/api/characters/generate-field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, context: formData }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (data.content) {
+        setFormData((prev) => ({ ...prev, [field]: data.content }));
+      }
+    } catch (err) {
+      alert(`Failed to generate ${field}: ${err}`);
+    } finally {
+      setFieldLoading((prev) => ({ ...prev, [field]: false }));
+    }
+  };
 
   const handleGenerate = async () => {
     if (!prompt.trim() || generating) return;
@@ -75,7 +96,6 @@ export default function NewCharacter() {
       });
 
       if (!res.ok) throw new Error(await res.text());
-      const created = await res.json();
       router.push(`/characters`);
     } catch (err) {
       alert('Failed to save character: ' + err);
@@ -115,7 +135,7 @@ export default function NewCharacter() {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. Vey"
+              placeholder="e.g. Yoo Seha"
               required
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 outline-none focus:border-zinc-700"
             />
@@ -147,52 +167,169 @@ export default function NewCharacter() {
           />
         </div>
 
+        {/* Persona */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-zinc-300">Persona & Personality *</label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-zinc-300">Persona & Personality *</label>
+            <button
+              type="button"
+              onClick={() => handleGenerateField('persona')}
+              disabled={fieldLoading['persona']}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+            >
+              <MagicWand size={12} />
+              <span>{fieldLoading['persona'] ? 'Generating...' : 'AI Assist'}</span>
+            </button>
+          </div>
           <textarea
             value={formData.persona}
             onChange={(e) => setFormData({ ...formData, persona: e.target.value })}
-            rows={4}
-            placeholder="[Personality: Playful, curious][Background: 24-year-old...]"
+            rows={5}
+            placeholder="Extensive psychological profile, personality traits, physical appearance, emotional triggers..."
             required
             className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none font-mono"
           />
         </div>
 
+        {/* Greeting */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-zinc-300">Greeting Message *</label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-zinc-300">Greeting Message *</label>
+            <button
+              type="button"
+              onClick={() => handleGenerateField('greeting')}
+              disabled={fieldLoading['greeting']}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+            >
+              <MagicWand size={12} />
+              <span>{fieldLoading['greeting'] ? 'Generating...' : 'AI Assist'}</span>
+            </button>
+          </div>
           <textarea
             value={formData.greeting}
             onChange={(e) => setFormData({ ...formData, greeting: e.target.value })}
             rows={3}
-            placeholder='*Vey leans against the doorframe.* "Well, well... all alone tonight?"'
+            placeholder='*Leans against the wall, looking at you.* "Well... what do you want?"'
             required
             className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none"
           />
         </div>
 
+        {/* Backstory & Scenario */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-300">Backstory</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-zinc-300">Backstory</label>
+              <button
+                type="button"
+                onClick={() => handleGenerateField('backstory')}
+                disabled={fieldLoading['backstory']}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+              >
+                <MagicWand size={12} />
+                <span>{fieldLoading['backstory'] ? 'Generating...' : 'AI Assist'}</span>
+              </button>
+            </div>
             <textarea
               value={formData.backstory}
               onChange={(e) => setFormData({ ...formData, backstory: e.target.value })}
-              rows={3}
-              placeholder="Detailed background story..."
+              rows={4}
+              placeholder="Rich backstory, origins, past trauma, turning points..."
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-300">Scenario & Setting</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-zinc-300">Scenario & Setting</label>
+              <button
+                type="button"
+                onClick={() => handleGenerateField('scenario')}
+                disabled={fieldLoading['scenario']}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+              >
+                <MagicWand size={12} />
+                <span>{fieldLoading['scenario'] ? 'Generating...' : 'AI Assist'}</span>
+              </button>
+            </div>
             <textarea
               value={formData.scenario}
               onChange={(e) => setFormData({ ...formData, scenario: e.target.value })}
-              rows={3}
-              placeholder="Location, time, and environment context..."
+              rows={4}
+              placeholder="Location, atmosphere, starting context with {{user}}..."
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none"
             />
           </div>
+        </div>
+
+        {/* Key Memories & Response Directives */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-zinc-300">Key Memories</label>
+              <button
+                type="button"
+                onClick={() => handleGenerateField('key_memories')}
+                disabled={fieldLoading['key_memories']}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+              >
+                <MagicWand size={12} />
+                <span>{fieldLoading['key_memories'] ? 'Generating...' : 'AI Assist'}</span>
+              </button>
+            </div>
+            <textarea
+              value={formData.key_memories}
+              onChange={(e) => setFormData({ ...formData, key_memories: e.target.value })}
+              rows={4}
+              placeholder="- Memory 1...\n- Memory 2..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none font-mono"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-zinc-300">Response Directives</label>
+              <button
+                type="button"
+                onClick={() => handleGenerateField('response_directives')}
+                disabled={fieldLoading['response_directives']}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+              >
+                <MagicWand size={12} />
+                <span>{fieldLoading['response_directives'] ? 'Generating...' : 'AI Assist'}</span>
+              </button>
+            </div>
+            <textarea
+              value={formData.response_directives}
+              onChange={(e) => setFormData({ ...formData, response_directives: e.target.value })}
+              rows={4}
+              placeholder="1. Dialogue dominant (70% dialogue, 30% action)...\n2. Short 2-4 lines per turn..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none font-mono"
+            />
+          </div>
+        </div>
+
+        {/* Example Dialogue */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-zinc-300">Example Dialogue</label>
+            <button
+              type="button"
+              onClick={() => handleGenerateField('example_dialogue')}
+              disabled={fieldLoading['example_dialogue']}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-950/40 text-purple-300 border border-purple-800/50 hover:bg-purple-900/50 text-[11px] transition-colors disabled:opacity-50"
+            >
+              <MagicWand size={12} />
+              <span>{fieldLoading['example_dialogue'] ? 'Generating...' : 'AI Assist'}</span>
+            </button>
+          </div>
+          <textarea
+            value={formData.example_dialogue}
+            onChange={(e) => setFormData({ ...formData, example_dialogue: e.target.value })}
+            rows={4}
+            placeholder="User: {{user}}: What are you doing?\n{{char}}: *Looks away.* Nothing..."
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none font-mono"
+          />
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-zinc-900">
@@ -216,32 +353,38 @@ export default function NewCharacter() {
           <div className="w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-2xl p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold flex items-center gap-2 text-purple-300">
-                <Sparkle size={18} weight="fill" /> AI Persona Generator
+                <Sparkle size={18} weight="fill" /> AI Persona Generator (Uncensored)
               </h3>
               <button onClick={() => setShowGenModal(false)} className="text-zinc-500 hover:text-zinc-300 text-xs">
-                Close
+                Cancel
               </button>
             </div>
             <p className="text-xs text-zinc-400">
-              Describe the character idea in plain Indonesian or English, and AI will construct the full persona schema.
+              Describe your character concept (e.g. &quot;A cold vampire duchess who secretly craves affection from her servant&quot;).
             </p>
+
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={4}
-              placeholder="e.g. Wanita 22 tahun kapten tim atletik lari yang tsundere dan sering latihan malam hari di kampus..."
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3.5 text-xs text-zinc-100 outline-none focus:border-zinc-700 resize-none"
+              placeholder="Enter character concept, role, personality traits, dark backstory..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-100 outline-none focus:border-purple-600 resize-none"
             />
+
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowGenModal(false)} className="px-3.5 py-2 rounded-xl text-xs text-zinc-400 hover:bg-zinc-900">
+              <button
+                onClick={() => setShowGenModal(false)}
+                className="px-4 py-2 rounded-xl text-xs text-zinc-400 hover:bg-zinc-900"
+              >
                 Cancel
               </button>
               <button
                 onClick={handleGenerate}
                 disabled={generating || !prompt.trim()}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 text-white font-semibold text-xs hover:bg-purple-500 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 text-zinc-100 text-xs font-semibold hover:bg-purple-500 transition-colors disabled:opacity-50"
               >
-                {generating ? 'Generating Persona...' : 'Generate Persona'}
+                <Sparkle size={14} weight="fill" />
+                <span>{generating ? 'Generating Persona...' : 'Generate Full Persona'}</span>
               </button>
             </div>
           </div>
