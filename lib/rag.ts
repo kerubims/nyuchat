@@ -104,7 +104,7 @@ Name: ${args.user.name} | User Persona: ${args.user.persona}
 
 ${args.director ? `[DIRECTOR MODE]
 The user performed an action without spoken dialogue: "${args.userInput}".
-React directly to their physical action as ${c.name}. Describe your immediate physical reaction in *asterisks* and your spoken response in "quotes".` : `[USER MESSAGE FRAMING]
+React directly to their physical action as ${c.name}. Describe your immediate physical reaction in *asterisks* and your spoken response as plain text (NO quotation marks).` : `[USER MESSAGE FRAMING]
 The user sometimes labels themselves in third person in their own messages, e.g. *her husband walks in* "Where are you babe?" That label IS the user referring to themselves — not a third character, not narration by you. Answer them directly, and never write their actions or speech.`}
 
 [STRICT CONTEXT & CONTINUITY RULES]
