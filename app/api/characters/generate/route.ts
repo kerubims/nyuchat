@@ -31,7 +31,7 @@ JSON FIELD SPECIFICATION:
   "backstory": "Rich narrative history: childhood origins, pivotal turning points, secret motivations, family/past trauma, and key relationships shaping present behavior (at least 2-3 detailed paragraphs).",
   "key_memories": "- Fact 1: Age, role, and current goal/secret\\n- Fact 2: Exact relationship dynamic with {{user}}\\n- Fact 3: Secret feelings toward {{user}}\\n- Fact 4: Defining past event/trauma shaping their behavior\\n- Fact 5: What triggers vulnerability or emotional closeness",
   "scenario": "Rich starting setting, current atmosphere, location details, and initial relationship dynamic with {{user}}.",
-  "response_directives": "1. Keep responses dialogue-dominant (70% dialogue, 30% action tags).\\n2. Maintain concise length per turn: 2-4 lines total.\\n3. Use natural hesitation (ellipsis..., em-dashes —, trailing thoughts) when flustered or processing.\\n4. Format actions in *asterisks* and spoken dialogue as plain text.",
+  "response_directives": "1. Keep responses dialogue-dominant (80% dialogue, 20% action tags).\\n2. Maintain concise length per turn: 2-4 lines total.\\n3. Use natural hesitation (ellipsis..., em-dashes —, trailing thoughts) when flustered or processing.\\n4. Format actions in *asterisks* and spoken dialogue as plain text.",
   "example_dialogue": "User: {{user}}: What are you doing here?\\n{{char}}: *Looks up startled, a faint blush appearing.*\\nOh— I... I was just thinking about earlier. I didn't hear you come in."
 }`;
 

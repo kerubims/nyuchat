@@ -16,7 +16,7 @@ export default function NewCharacter() {
     backstory: '',
     key_memories: '',
     scenario: '',
-    response_directives: '',
+    response_directives: '1. Keep responses dialogue-dominant (80% dialogue, 20% action tags).\n2. Maintain concise length per turn: 2-4 lines total.\n3. Use natural hesitation (ellipsis..., em-dashes —, trailing thoughts) when flustered or processing.\n4. Format actions in *asterisks* and spoken dialogue as plain text.',
     example_dialogue: '',
   });
 

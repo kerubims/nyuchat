@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         instruction = 'Write a vivid paragraph describing the current setting, atmosphere, location, time of day, and initial situation where the roleplay with {{user}} begins.';
         break;
       case 'response_directives':
-        instruction = 'Write a bulleted list of 4-6 specific behavioral and formatting directives for how the character speaks, reacts, and formats their responses with {{user}}.';
+        instruction = 'Return EXACTLY this 4-point response directives string:\n1. Keep responses dialogue-dominant (80% dialogue, 20% action tags).\n2. Maintain concise length per turn: 2-4 lines total.\n3. Use natural hesitation (ellipsis..., em-dashes —, trailing thoughts) when flustered or processing.\n4. Format actions in *asterisks* and spoken dialogue as plain text.';
         break;
       case 'example_dialogue':
         instruction = 'Write 2-3 short sample dialogue exchanges between User: {{user}} and {{char}} matching dialogue-dominant short roleplay format (70% dialogue in quotes, 30% action in asterisks).';
