@@ -223,7 +223,7 @@ export async function assemble(args: {
       where: { id: args.sessionId },
       data: { global_summary: summary, msg_since_summary: 0 },
     });
-    await prisma.chatMessage.deleteMany({ where: { id: { in: old.map((m) => m.id) } } });
+    // DO NOT delete chat messages from DB so chat history remains completely intact!
   }
 
   const recent = beyond > 0 ? all.slice(beyond) : all;
