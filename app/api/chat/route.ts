@@ -68,18 +68,8 @@ export async function POST(req: Request) {
 
   // Case A: Regenerating an assistant response
   if (regenerateMessageId) {
-    const deleted = await deleteFromMessageOnward(regenerateMessageId);
-    if (!deleted) {
-      // Fallback if ID was lost: delete last assistant message
-      const lastAssistant = await prisma.chatMessage.findFirst({
-        where: { chat_session_id: sessionId, sender: 'assistant' },
-        orderBy: { created_at: 'desc' },
-      });
-      if (lastAssistant) {
-        await deleteFromMessageOnward(lastAssistant.id);
-      }
-    }
-
+    // Validate BEFORE deleting: if there is no preceding user message the
+    // request is rejected, and deleting first would permanently lose history.
     const lastUserMsg = await prisma.chatMessage.findFirst({
       where: { chat_session_id: sessionId, sender: 'user' },
       orderBy: { created_at: 'desc' },
@@ -87,6 +77,20 @@ export async function POST(req: Request) {
     if (!lastUserMsg) {
       return Response.json({ error: 'No preceding user message to regenerate' }, { status: 400 });
     }
+
+    const deleted = await deleteFromMessageOnward(regenerateMessageId);
+    if (!deleted) {
+      // Fallback if ID was lost: delete ONLY the last assistant message.
+      // deleteFromMessageOnward() would also drop any user message after it.
+      const lastAssistant = await prisma.chatMessage.findFirst({
+        where: { chat_session_id: sessionId, sender: 'assistant' },
+        orderBy: { created_at: 'desc' },
+      });
+      if (lastAssistant) {
+        await prisma.chatMessage.delete({ where: { id: lastAssistant.id } });
+      }
+    }
+
     userInput = lastUserMsg.content;
   }
   // Case B: Editing an existing user message
