@@ -446,19 +446,6 @@ export default function DedicatedChatRoom() {
 
       {/* Main Workspace */}
       <section className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
-        {/* Ambient Character Avatar Background Overlay */}
-        {character.avatar_url && (
-          <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden select-none">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={character.avatar_url}
-              alt=""
-              className="w-full h-full object-cover opacity-[0.18] scale-105 filter blur-[2px]"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/90 via-zinc-950/70 to-zinc-950/95" />
-          </div>
-        )}
-
         {/* Header Bar - Permanently Fixed at Top */}
         <header className="h-14 px-4 md:px-6 border-b border-zinc-900 flex items-center justify-between shrink-0 bg-zinc-950 z-30 select-none">
           <div className="flex items-center gap-3 min-w-0">
