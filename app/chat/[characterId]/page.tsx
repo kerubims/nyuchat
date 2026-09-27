@@ -13,6 +13,19 @@ import { TokenModal } from '@/components/chat/TokenModal';
 import { RagInspectorModal } from '@/components/chat/RagInspectorModal';
 import { StoryViewerModal } from '@/components/chat/StoryViewerModal';
 
+/** Safe UUID generator — works on HTTP (non-secure) contexts too */
+function safeUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for HTTP contexts where crypto.randomUUID is unavailable
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 type Character = {
   id: string;
   name: string;
@@ -137,7 +150,7 @@ export default function DedicatedChatRoom() {
       const data = await res.json();
       const loadedMsgs = (data.messages || []).map((m: { id?: string; sender: string; content: string }) => ({
         ...m,
-        id: m.id || crypto.randomUUID(),
+        id: m.id || safeUUID(),
       }));
       setMessages(loadedMsgs);
       setUsage({
@@ -158,7 +171,7 @@ export default function DedicatedChatRoom() {
     const s = await res.json();
     await loadSessions();
     setActiveSessionId(s.id);
-    setMessages([{ id: crypto.randomUUID(), sender: 'assistant', content: character.greeting }]);
+    setMessages([{ id: safeUUID(), sender: 'assistant', content: character.greeting }]);
     setUsage({ promptTokens: 0, completionTokens: 0, totalCost: 0 });
   }, [character, loadSessions]);
 
@@ -233,7 +246,7 @@ export default function DedicatedChatRoom() {
     }
 
     const content = text.trim();
-    const newUserMsgId = crypto.randomUUID();
+    const newUserMsgId = safeUUID();
 
     setMessages((m) => {
       let base = m;
@@ -268,7 +281,7 @@ export default function DedicatedChatRoom() {
     const dec = new TextDecoder();
     let buf = '';
     let acc = '';
-    const id = crypto.randomUUID();
+    const id = safeUUID();
 
     let currentId = id;
     setMessages((m) => [...m, { id, sender: 'assistant', content: '', isStreaming: true }]);
@@ -322,7 +335,7 @@ export default function DedicatedChatRoom() {
     const targetIndex = messages.findIndex((m) => m.id === assistantMessageId);
     if (targetIndex === -1 || streaming || !activeSessionId) return;
 
-    const newAssistantId = crypto.randomUUID();
+    const newAssistantId = safeUUID();
     setStreaming(true);
 
     // Atomically replace target assistant message with a new empty streaming message
