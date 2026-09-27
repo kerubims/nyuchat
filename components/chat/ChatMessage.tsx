@@ -35,8 +35,8 @@ export function ChatMessage({
     return parts.map((part, i) => {
       if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
         return (
-          <em key={i} className="text-zinc-400 font-normal">
-            {part.slice(1, -1)}
+          <em key={i} className="text-purple-400 italic font-medium not-italic">
+            {part}
           </em>
         );
       }

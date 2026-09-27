@@ -312,7 +312,7 @@ export default function DedicatedChatRoom() {
         }
       }
     } finally {
-      setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, isStreaming: false, isRegenerating: false } : x)));
+      setMessages((m) => m.map((x) => ({ ...x, isStreaming: false, isRegenerating: false })));
       setStreaming(false);
       void loadSessions(); // pick up auto-title rename
     }
@@ -354,45 +354,48 @@ export default function DedicatedChatRoom() {
     let acc = '';
 
     let currentId = newAssistantId;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split('\n\n');
-      buf = lines.pop() ?? '';
-      for (const line of lines) {
-        const payload = line.replace(/^data:\s*/, '').trim();
-        if (!payload || payload === '[DONE]') continue;
-        try {
-          const j: {
-            token?: string;
-            messageId?: string;
-            error?: string;
-            usage?: { prompt_tokens: number; completion_tokens: number; cost_usd: number };
-          } = JSON.parse(payload);
-          if (j.error) {
-            setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false, isRegenerating: false } : x)));
-          } else if (j.messageId) {
-            const targetId = j.messageId;
-            setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, id: targetId } : x)));
-            currentId = targetId;
-          } else if (j.token) {
-            acc += j.token;
-            setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: acc } : x)));
-          } else if (j.usage) {
-            setUsage((prev) => ({
-              promptTokens: prev.promptTokens + j.usage!.prompt_tokens,
-              completionTokens: prev.completionTokens + j.usage!.completion_tokens,
-              totalCost: Number((prev.totalCost + (j.usage!.cost_usd || 0)).toFixed(6)),
-            }));
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          const payload = line.replace(/^data:\s*/, '').trim();
+          if (!payload || payload === '[DONE]') continue;
+          try {
+            const j: {
+              token?: string;
+              messageId?: string;
+              error?: string;
+              usage?: { prompt_tokens: number; completion_tokens: number; cost_usd: number };
+            } = JSON.parse(payload);
+            if (j.error) {
+              setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false, isRegenerating: false } : x)));
+            } else if (j.messageId) {
+              const targetId = j.messageId;
+              setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, id: targetId } : x)));
+              currentId = targetId;
+            } else if (j.token) {
+              acc += j.token;
+              setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: acc } : x)));
+            } else if (j.usage) {
+              setUsage((prev) => ({
+                promptTokens: prev.promptTokens + j.usage!.prompt_tokens,
+                completionTokens: prev.completionTokens + j.usage!.completion_tokens,
+                totalCost: Number((prev.totalCost + (j.usage!.cost_usd || 0)).toFixed(6)),
+              }));
+            }
+          } catch {
+            /* keepalive */
           }
-        } catch {
-          /* keepalive */
         }
       }
+    } finally {
+      setMessages((m) => m.map((x) => ({ ...x, isStreaming: false, isRegenerating: false })));
+      setStreaming(false);
     }
-    setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, isStreaming: false, isRegenerating: false } : x)));
-    setStreaming(false);
   };
 
   const handleEditRequest = (messageId: string, content: string) => {
@@ -430,6 +433,19 @@ export default function DedicatedChatRoom() {
 
       {/* Main Workspace */}
       <section className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
+        {/* Ambient Character Avatar Background Overlay */}
+        {character.avatar_url && (
+          <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden select-none">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={character.avatar_url}
+              alt=""
+              className="w-full h-full object-cover opacity-[0.18] scale-105 filter blur-[2px]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/90 via-zinc-950/70 to-zinc-950/95" />
+          </div>
+        )}
+
         {/* Header Bar - Permanently Fixed at Top */}
         <header className="h-14 px-4 md:px-6 border-b border-zinc-900 flex items-center justify-between shrink-0 bg-zinc-950 z-30 select-none">
           <div className="flex items-center gap-3 min-w-0">
