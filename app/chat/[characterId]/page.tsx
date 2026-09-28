@@ -199,9 +199,26 @@ export default function DedicatedChatRoom() {
         const list = await loadSessions();
         if (initialSessionId) {
           const matched = list.find((s) => s.id === initialSessionId);
-          if (matched) await openSession(matched.id);
-          else if (list.length > 0) await openSession(list[0].id);
-          else await createNewSession();
+          if (matched) {
+            await openSession(matched.id);
+          } else {
+            // initialSessionId may belong to a different character (cross-character
+            // deep-link). Fetch it unfiltered rather than silently opening list[0],
+            // which previously caused regenerate() to run against the wrong session.
+            try {
+              const res = await fetch(`/api/sessions/${initialSessionId}`);
+              if (res.ok) {
+                await openSession(initialSessionId);
+              } else if (list.length > 0) {
+                await openSession(list[0].id);
+              } else {
+                await createNewSession();
+              }
+            } catch {
+              if (list.length > 0) await openSession(list[0].id);
+              else await createNewSession();
+            }
+          }
         } else if (list.length > 0) {
           await openSession(list[0].id);
         } else {
@@ -332,8 +349,19 @@ export default function DedicatedChatRoom() {
   };
 
   const handleRegenerate = async (assistantMessageId: string) => {
+    // Only the LAST assistant message may be regenerated: regenerating an earlier
+    // one deletes every message after it (including user messages) via
+    // deleteFromMessageOnward(), causing permanent data loss.
     const targetIndex = messages.findIndex((m) => m.id === assistantMessageId);
     if (targetIndex === -1 || streaming || !activeSessionId) return;
+    const isLastAssistant =
+      messages[targetIndex].sender === 'assistant' &&
+      !messages.slice(targetIndex + 1).some((m) => m.sender === 'assistant');
+    if (!isLastAssistant) return;
+
+    // Snapshot original message so UI can be restored if the request fails
+    // (previously a 400 left a permanent "Regenerating response..." placeholder).
+    const original = messages[targetIndex];
 
     const newAssistantId = safeUUID();
     setStreaming(true);
@@ -357,6 +385,14 @@ export default function DedicatedChatRoom() {
     });
 
     if (!res.ok) {
+      // Restore original message; the server rejected the regenerate request
+      // (e.g. no preceding user message) so nothing was deleted server-side.
+      setMessages((m) => {
+        const idx = m.findIndex((x) => x.id === newAssistantId);
+        if (idx === -1) return m;
+        const restored = { ...original, isStreaming: false, isRegenerating: false };
+        return [...m.slice(0, idx), restored, ...m.slice(idx + 1)];
+      });
       setStreaming(false);
       return;
     }
@@ -414,6 +450,11 @@ export default function DedicatedChatRoom() {
   const handleEditRequest = (messageId: string, content: string) => {
     setEditingMessageId(messageId);
     window.dispatchEvent(new CustomEvent('setChatInput', { detail: content }));
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    window.dispatchEvent(new CustomEvent('setChatInput', { detail: '' }));
   };
 
   if (loading || !character) {
@@ -551,7 +592,7 @@ export default function DedicatedChatRoom() {
               onOpenStoryJournal={() => setShowStoryModal(true)}
               onCopy20Chats={handleCopy20Chats}
               editingMessageId={editingMessageId}
-              onCancelEdit={() => setEditingMessageId(null)}
+              onCancelEdit={handleCancelEdit}
             />
           </div>
         </footer>
