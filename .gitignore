@@ -35,3 +35,5 @@ prisma/generated/
 
 # docker
 docker-compose.override.yml
+.env.bak
+.env.studio
