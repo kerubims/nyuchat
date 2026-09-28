@@ -1,0 +1,3 @@
+
+# Onnx models are bind-mounted, never bake into image (saves 5.4GB per layer)
+onnx
