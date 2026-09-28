@@ -149,7 +149,8 @@ export async function POST(req: Request) {
   extractAndStoreFacts(
     user?.id ?? 'me',
     session.character_id,
-    recentUser.map((m) => m.content)
+    recentUser.map((m) => m.content),
+    sessionId
   ).catch(console.error);
 
   const ctx = await assemble({

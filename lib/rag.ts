@@ -207,7 +207,7 @@ export async function assemble(args: {
   userInput: string;
 }): Promise<AssembledContext> {
   const session = await prisma.chatSession.findUniqueOrThrow({ where: { id: args.sessionId } });
-  const facts = await retrieveFacts('me', args.character.id, args.userInput);
+  const facts = await retrieveFacts('me', args.character.id, args.userInput, args.sessionId);
 
   const all = await prisma.chatMessage.findMany({
     where: { chat_session_id: args.sessionId },

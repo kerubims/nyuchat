@@ -13,7 +13,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     const facts = await prisma.userFact.findMany({
-      where: { character_id: session.character_id },
+      where: { character_id: session.character_id, session_id: id },
       orderBy: { created_at: 'desc' },
       take: 20,
     });

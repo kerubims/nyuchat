@@ -66,11 +66,13 @@ model UserFact {
   id           String   @id @default(uuid())
   user_id      String
   character_id String
+  session_id   String?
   subject      String
   predicate    String
   object       String   @db.Text
   raw_fact     String   @db.Text
   embedding    Unsupported("vector(1024)")?
   created_at   DateTime @default(now())
+  @@index([session_id])
   @@map("user_facts")
 }

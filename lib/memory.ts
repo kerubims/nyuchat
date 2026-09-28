@@ -22,7 +22,8 @@ export interface Fact {
 export async function extractAndStoreFacts(
   userId: string,
   characterId: string,
-  recentUserMsgs: string[]
+  recentUserMsgs: string[],
+  sessionId?: string
 ): Promise<number> {
   if (recentUserMsgs.length === 0) return 0;
   const text = recentUserMsgs.slice(-FACT_WINDOW).join('\n');
@@ -52,8 +53,8 @@ ${text}`;
       limit 1`;
     if (dup.length) continue;
     await prisma.$executeRaw`
-      insert into user_facts (id, user_id, character_id, subject, predicate, object, raw_fact, embedding)
-      values (${crypto.randomUUID()}, ${userId}, ${characterId}, ${r.s}, ${r.p}, ${r.o}, ${raw}, ${toPgVector(vecs[i])}::vector)`;
+      insert into user_facts (id, user_id, character_id, session_id, subject, predicate, object, raw_fact, embedding)
+      values (${crypto.randomUUID()}, ${userId}, ${characterId}, ${sessionId ?? null}, ${r.s}, ${r.p}, ${r.o}, ${raw}, ${toPgVector(vecs[i])}::vector)`;
     n++;
   }
   return n;
@@ -64,6 +65,7 @@ export async function retrieveFacts(
   userId: string,
   characterId: string,
   query: string,
+  sessionId?: string,
   topK = 4
 ): Promise<Fact[]> {
   const qv = toPgVector(await embed(query, true));
@@ -72,14 +74,14 @@ export async function retrieveFacts(
     `with dense as (
       select id, raw_fact, 1.0 / (row_number() over (order by embedding <=> $1::vector)) as rrf
       from user_facts
-      where user_id = $2 and character_id = $3
+      where user_id = $2 and character_id = $3 and session_id = $6
       order by embedding <=> $1::vector
       limit $4
     ),
     lex as (
       select id, raw_fact, 1.0 / (row_number() over (order by similarity(raw_fact, $5) desc)) as rrf
       from user_facts
-      where user_id = $2 and character_id = $3
+      where user_id = $2 and character_id = $3 and session_id = $6
         and raw_fact % $5
       order by similarity(raw_fact, $5) desc
       limit $4
@@ -96,7 +98,8 @@ export async function retrieveFacts(
     userId,
     characterId,
     CANDIDATES,
-    query
+    query,
+    sessionId ?? null
   );
 
   if (rows.length === 0) return [];
