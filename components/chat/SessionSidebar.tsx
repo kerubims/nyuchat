@@ -94,53 +94,75 @@ export function SessionSidebar({
         <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
           {sessions.length === 0 ? (
             <p className="text-xs text-zinc-600 text-center py-8">No sessions yet</p>
-          ) : (
-            sessions.map((session) => {
+          ) : (() => {
+            const byCreated = [...sessions].sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+            const roots = byCreated.filter((s) => !s.parent_session_id);
+            const childrenOf = (pid: string) => byCreated.filter((s) => s.parent_session_id === pid);
+
+            const renderSubtree = (session: Session, depth: number, parentTitle?: string) => {
               const isActive = session.id === activeSessionId;
+              const kids = childrenOf(session.id);
               return (
-                <div
-                  key={session.id}
-                  className="group relative flex items-center gap-1"
-                >
-                  <button
-                    onClick={() => {
-                      onSelectSession(session.id);
-                      onClose();
-                    }}
-                    className={`flex-1 text-left px-3 py-2.5 rounded-xl text-xs transition-all truncate flex items-center gap-1.5 ${
-                      isActive
-                        ? 'bg-zinc-900 text-zinc-100 border border-zinc-800 font-semibold shadow-sm'
-                        : 'text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-200'
-                    }`}
+                <div key={session.id} className="flex flex-col gap-1">
+                  <div
+                    className="group relative flex items-center gap-1"
+                    style={depth > 0 ? { marginLeft: 20 * depth } : undefined}
                   >
-                    {session.parent_session_id && (
-                      <GitBranch
-                        size={12}
-                        weight="bold"
-                        className="text-emerald-500 shrink-0"
-                        aria-label="branched session"
+                    {depth > 0 && (
+                      <span
+                        className="absolute -left-3 top-1/2 -translate-y-1/2 h-[calc(100%+6px)] w-px bg-zinc-800"
+                        aria-hidden
                       />
                     )}
-                    <span className="truncate">{session.title}</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        onSelectSession(session.id);
+                        onClose();
+                      }}
+                      className={`flex-1 text-left px-3 py-2.5 rounded-xl text-xs transition-all truncate flex items-center gap-1.5 ${
+                        isActive
+                          ? 'bg-zinc-900 text-zinc-100 border border-zinc-800 font-semibold shadow-sm'
+                          : 'text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-200'
+                      }`}
+                      title={parentTitle ? `Branched from: ${parentTitle}` : session.title}
+                    >
+                      {session.parent_session_id && (
+                        <GitBranch
+                          size={12}
+                          weight="bold"
+                          className="text-emerald-500 shrink-0"
+                          aria-label="branched session"
+                        />
+                      )}
+                      <span className="truncate">{session.title}</span>
+                      {session.branch_label && (
+                        <span className="ml-auto pl-1 text-[9px] font-mono text-emerald-600/90 shrink-0">
+                          {session.branch_label}
+                        </span>
+                      )}
+                    </button>
 
-                  {/* High Contrast Delete Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm('Delete this session?')) {
-                        onDeleteSession(session.id);
-                      }
-                    }}
-                    className="px-2 py-1.5 rounded-lg bg-rose-950/60 border border-rose-800/80 text-rose-400 hover:bg-rose-900 hover:text-rose-100 transition-colors flex items-center justify-center shrink-0 shadow-sm"
-                    title="Delete session"
-                  >
-                    <Trash size={14} weight="bold" />
-                  </button>
+                    {/* High Contrast Delete Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm('Delete this session?')) {
+                          onDeleteSession(session.id);
+                        }
+                      }}
+                      className="px-2 py-1.5 rounded-lg bg-rose-950/60 border border-rose-800/80 text-rose-400 hover:bg-rose-900 hover:text-rose-100 transition-colors flex items-center justify-center shrink-0 shadow-sm"
+                      title="Delete session"
+                    >
+                      <Trash size={14} weight="bold" />
+                    </button>
+                  </div>
+                  {kids.map((kid) => renderSubtree(kid, depth + 1, session.title))}
                 </div>
               );
-            })
-          )}
+            };
+
+            return roots.map((root) => renderSubtree(root, 0));
+          })()}
         </div>
 
         {/* Settings Section */}
