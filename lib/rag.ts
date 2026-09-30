@@ -4,7 +4,7 @@ import { retrieveFacts, callStheno, MODEL_ID } from './memory';
 // PRD §7: Working Memory (in-context) = system prompt + retrieved facts +
 // recent N turns + global summary. Episodic summary compressed every N msgs.
 
-const RECENT_TURNS = 8; // Keep 8 turns (16 user+assistant messages) verbatim in-context
+export const RECENT_TURNS = 8; // Keep 8 turns (16 user+assistant messages) verbatim in-context
 const SUMMARY_EVERY = 6; // Compress once this many turns accumulate past summary
 
 export interface AssembledContext {
@@ -221,7 +221,7 @@ export async function assemble(args: {
     summary = await compressSummary(args.sessionId, old, session.global_summary);
     await prisma.chatSession.update({
       where: { id: args.sessionId },
-      data: { global_summary: summary, msg_since_summary: 0 },
+      data: { global_summary: summary, msg_since_summary: 0, summary_upto_msg_id: old[old.length - 1]?.id ?? null },
     });
     // DO NOT delete chat messages from DB so chat history remains completely intact!
   }

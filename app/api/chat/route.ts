@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db';
-import { assemble } from '@/lib/rag';
+import { assemble, compressSummary, RECENT_TURNS } from '@/lib/rag';
 import { extractAndStoreFacts, MODEL_ID } from '@/lib/memory';
 import { updateSceneState, generateTitle } from '@/lib/state';
 
@@ -111,12 +111,41 @@ export async function POST(req: Request) {
       }
     }
 
-    // Reset episodic summary and scene state since storyline was edited
+    // Rollback the episodic summary to the edit point instead of dropping it.
+    // If the edit lands past the summary's checkpoint the summary is untouched;
+    // if it lands inside the summarised region the summary is rebuilt from the
+    // surviving messages.
+    const remaining = await prisma.chatMessage.findMany({
+      where: { chat_session_id: sessionId },
+      orderBy: { created_at: 'asc' },
+    });
+    const cpIdx = session.summary_upto_msg_id
+      ? remaining.findIndex((m) => m.id === session.summary_upto_msg_id)
+      : -1;
+
+    let nextSummary: string | null = session.global_summary;
+    let nextCheckpoint: string | null = session.summary_upto_msg_id;
+
+    if (cpIdx !== -1 && session.global_summary) {
+      // Checkpoint survived the delete -> summary still describes intact history.
+      nextSummary = session.global_summary;
+      nextCheckpoint = remaining[cpIdx].id;
+    } else if (remaining.length > RECENT_TURNS * 2) {
+      // Checkpoint was inside the deleted region -> rebuild from scratch.
+      const old = remaining.slice(0, remaining.length - RECENT_TURNS * 2);
+      nextSummary = await compressSummary(sessionId, old, null);
+      nextCheckpoint = old[old.length - 1]?.id ?? null;
+    } else {
+      nextSummary = null;
+      nextCheckpoint = null;
+    }
+
     await prisma.chatSession.update({
       where: { id: sessionId },
       data: {
-        global_summary: null,
-        current_state: `Location: living room | Time: evening | Actors: ${session.character.name}, User`,
+        global_summary: nextSummary,
+        summary_upto_msg_id: nextCheckpoint,
+        current_state: `Location: unspecified | Time: evening | Actors: ${session.character.name}, User`,
         msg_since_summary: 0,
       },
     });
