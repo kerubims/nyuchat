@@ -45,10 +45,13 @@ model ChatSession {
   total_prompt_tokens     Int           @default(0)
   total_completion_tokens Int           @default(0)
   total_cost_usd          Float         @default(0)
+  parent_session_id       String?       // null = root session
+  branch_label            String?       // "Branch 1" for forked sessions
   created_at              DateTime      @default(now())
   updated_at              DateTime      @updatedAt
   character               Character     @relation(fields: [character_id], references: [id], onDelete: Cascade)
   messages                ChatMessage[]
+  @@index([parent_session_id])
   @@map("chatsession")
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Translate, ArrowClockwise, PencilSimple, SpinnerGap } from '@phosphor-icons/react';
+import { Translate, ArrowClockwise, PencilSimple, SpinnerGap, GitBranch } from '@phosphor-icons/react';
 
 interface ChatMessageProps {
   id: string;
@@ -13,6 +13,7 @@ interface ChatMessageProps {
   isRegenerating?: boolean;
   onRegenerate?: (id: string) => void;
   onEdit?: (id: string, content: string) => void;
+  onBranch?: (id: string) => void;
 }
 
 export function ChatMessage({
@@ -25,6 +26,7 @@ export function ChatMessage({
   isRegenerating,
   onRegenerate,
   onEdit,
+  onBranch,
 }: ChatMessageProps) {
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -166,6 +168,16 @@ export function ChatMessage({
                 title="Regenerate Balasan"
               >
                 <ArrowClockwise size={14} weight="bold" />
+              </button>
+            )}
+
+            {onBranch && (
+              <button
+                onClick={() => onBranch(id)}
+                className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-emerald-300 hover:bg-emerald-950/60 transition-colors shadow-sm"
+                title="Cabangkan cerita dari titik ini"
+              >
+                <GitBranch size={14} weight="bold" />
               </button>
             )}
           </div>

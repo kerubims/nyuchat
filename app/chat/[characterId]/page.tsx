@@ -52,6 +52,8 @@ type Session = {
   total_prompt_tokens?: number;
   total_completion_tokens?: number;
   total_cost_usd?: number;
+  parent_session_id?: string | null;
+  branch_label?: string | null;
 };
 
 type Fact = {
@@ -267,6 +269,32 @@ export default function DedicatedChatRoom() {
       console.error('Copy facts failed', err);
     }
   }, [activeSessionId, character]);
+
+  // Fork the session at a character message: copy everything up to that message
+  // (chat history, summary, facts) into a new session, then switch to it.
+  const handleBranch = useCallback(
+    async (assistantMessageId: string) => {
+      if (!activeSessionId || streaming) return;
+      try {
+        const res = await fetch(`/api/sessions/${activeSessionId}/branch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ upToMessageId: assistantMessageId }),
+        });
+        if (!res.ok) {
+          const e = await res.json().catch(() => null);
+          console.error('Branch failed:', e?.error ?? res.status);
+          return;
+        }
+        const { branch } = await res.json();
+        await loadSessions();
+        await openSession(branch.id);
+      } catch (err) {
+        console.error('Branch failed', err);
+      }
+    },
+    [activeSessionId, streaming, loadSessions, openSession]
+  );
 
   const handleSendMessage = async (text: string) => {
     if (!activeSessionId || !text.trim() || streaming) return;
@@ -589,6 +617,7 @@ export default function DedicatedChatRoom() {
                     isRegenerating={m.isRegenerating}
                     onRegenerate={m.sender === 'assistant' ? handleRegenerate : undefined}
                     onEdit={m.sender === 'user' ? handleEditRequest : undefined}
+                    onBranch={m.sender === 'assistant' ? handleBranch : undefined}
                   />
                 </motion.div>
               ))}
