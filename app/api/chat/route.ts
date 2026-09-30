@@ -112,30 +112,31 @@ export async function POST(req: Request) {
     }
 
     // Rollback the episodic summary to the edit point instead of dropping it.
-    // If the edit lands past the summary's checkpoint the summary is untouched;
-    // if it lands inside the summarised region the summary is rebuilt from the
-    // surviving messages.
+    // If the summary checkpoint survived the delete, the summary still
+    // describes intact history and is kept. If the checkpoint was inside the
+    // deleted region, the summary is rebuilt from the surviving messages.
     const remaining = await prisma.chatMessage.findMany({
       where: { chat_session_id: sessionId },
       orderBy: { created_at: 'asc' },
     });
-    const cpIdx = session.summary_upto_msg_id
-      ? remaining.findIndex((m) => m.id === session.summary_upto_msg_id)
-      : -1;
+    const cpSurvived = session.summary_upto_msg_id
+      ? remaining.some((m) => m.id === session.summary_upto_msg_id)
+      : false;
 
     let nextSummary: string | null = session.global_summary;
     let nextCheckpoint: string | null = session.summary_upto_msg_id;
 
-    if (cpIdx !== -1 && session.global_summary) {
-      // Checkpoint survived the delete -> summary still describes intact history.
+    if (cpSurvived) {
+      // Summary describes history that is still intact.
       nextSummary = session.global_summary;
-      nextCheckpoint = remaining[cpIdx].id;
-    } else if (remaining.length > RECENT_TURNS * 2) {
+      nextCheckpoint = session.summary_upto_msg_id;
+    } else if (session.global_summary && remaining.length > RECENT_TURNS * 2) {
       // Checkpoint was inside the deleted region -> rebuild from scratch.
       const old = remaining.slice(0, remaining.length - RECENT_TURNS * 2);
       nextSummary = await compressSummary(sessionId, old, null);
       nextCheckpoint = old[old.length - 1]?.id ?? null;
     } else {
+      // Too little history left to summarise.
       nextSummary = null;
       nextCheckpoint = null;
     }
