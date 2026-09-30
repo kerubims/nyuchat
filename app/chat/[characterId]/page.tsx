@@ -144,16 +144,17 @@ export default function DedicatedChatRoom() {
     return charSessions;
   }, [characterId]);
 
-  const openSession = useCallback(async (sessionId: string) => {
+  const openSession = useCallback(async (sessionId: string, skipHistory?: boolean) => {
     setActiveSessionId(sessionId);
     setEditingMessageId(null);
+    // Keep the session in the URL so a reload returns to the same room.
+    if (!skipHistory) {
+      router.replace(`/chat/${characterId}?sessionId=${sessionId}`, { scroll: false });
+    }
     const res = await fetch(`/api/sessions/${sessionId}`);
     if (res.ok) {
       const data = await res.json();
-      const loadedMsgs = (data.messages || []).map((m: { id?: string; sender: string; content: string }) => ({
-        ...m,
-        id: m.id || safeUUID(),
-      }));
+      const loadedMsgs = (data.messages || []).map((m: { id?: string; sender: string; content: string }) => ({ ...m, id: m.id || safeUUID() }));
       setMessages(loadedMsgs);
       setUsage({
         promptTokens: data.session?.total_prompt_tokens || 0,
@@ -161,7 +162,7 @@ export default function DedicatedChatRoom() {
         totalCost: data.session?.total_cost_usd || 0,
       });
     }
-  }, []);
+  }, [characterId, router]);
 
   const createNewSession = useCallback(async () => {
     if (!character) return;
