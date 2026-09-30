@@ -47,6 +47,7 @@ model ChatSession {
   total_cost_usd          Float         @default(0)
   parent_session_id       String?       // null = root session
   branch_label            String?       // "Branch 1" for forked sessions
+  summary_upto_msg_id     String?       // last msg id absorbed into global_summary
   created_at              DateTime      @default(now())
   updated_at              DateTime      @updatedAt
   character               Character     @relation(fields: [character_id], references: [id], onDelete: Cascade)
