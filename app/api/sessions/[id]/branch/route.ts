@@ -41,6 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       global_summary: source.global_summary,
       current_state: source.current_state,
       msg_since_summary: source.msg_since_summary,
+      summary_upto_msg_id: source.summary_upto_msg_id,
       total_prompt_tokens: source.total_prompt_tokens,
       total_completion_tokens: source.total_completion_tokens,
       total_cost_usd: source.total_cost_usd,
