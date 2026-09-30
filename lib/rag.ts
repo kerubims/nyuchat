@@ -216,8 +216,16 @@ export async function assemble(args: {
 
   let summary = session.global_summary;
   const beyond = Math.max(0, all.length - RECENT_TURNS * 2);
-  if (beyond >= SUMMARY_EVERY * 2) {
-    const old = all.slice(0, beyond);
+  // Compress only the messages accumulated since the last summary checkpoint.
+  // Slicing from message zero fed the entire history into compressSummary every
+  // request, blowing past Stheno's 8192-token ceiling on long sessions and
+  // stalling the checkpoint forever.
+  const cpIdx = session.summary_upto_msg_id
+    ? all.findIndex((m) => m.id === session.summary_upto_msg_id)
+    : -1;
+  const start = cpIdx >= 0 ? cpIdx + 1 : 0;
+  const old = all.slice(start, beyond);
+  if (beyond > start && old.length >= SUMMARY_EVERY * 2) {
     summary = await compressSummary(args.sessionId, old, session.global_summary);
     await prisma.chatSession.update({
       where: { id: args.sessionId },
