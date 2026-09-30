@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Plus, Trash, X, ArrowLeft, Sliders, Coins } from '@phosphor-icons/react';
+import { Plus, Trash, X, ArrowLeft, Sliders, Coins, GitBranch } from '@phosphor-icons/react';
 
 interface Session {
   id: string;
@@ -10,6 +10,8 @@ interface Session {
   total_prompt_tokens?: number;
   total_completion_tokens?: number;
   total_cost_usd?: number;
+  parent_session_id?: string | null;
+  branch_label?: string | null;
 }
 
 interface UsageStats {
@@ -105,13 +107,21 @@ export function SessionSidebar({
                       onSelectSession(session.id);
                       onClose();
                     }}
-                    className={`flex-1 text-left px-3 py-2.5 rounded-xl text-xs transition-all truncate ${
+                    className={`flex-1 text-left px-3 py-2.5 rounded-xl text-xs transition-all truncate flex items-center gap-1.5 ${
                       isActive
                         ? 'bg-zinc-900 text-zinc-100 border border-zinc-800 font-semibold shadow-sm'
                         : 'text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-200'
                     }`}
                   >
-                    {session.title}
+                    {session.parent_session_id && (
+                      <GitBranch
+                        size={12}
+                        weight="bold"
+                        className="text-emerald-500 shrink-0"
+                        aria-label="branched session"
+                      />
+                    )}
+                    <span className="truncate">{session.title}</span>
                   </button>
 
                   {/* High Contrast Delete Button */}
