@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Translate, ArrowClockwise, PencilSimple } from '@phosphor-icons/react';
+import { Translate, ArrowClockwise, PencilSimple, SpinnerGap } from '@phosphor-icons/react';
 
 interface ChatMessageProps {
   id: string;
@@ -29,6 +29,7 @@ export function ChatMessage({
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
 
   const formatContent = (text: string) => {
     const parts = text.split(/(\*[^*]+\*)/g);
@@ -51,6 +52,7 @@ export function ChatMessage({
     }
 
     setIsTranslating(true);
+    setTranslateError(null);
     try {
       const res = await fetch('/api/translate', {
         method: 'POST',
@@ -61,9 +63,12 @@ export function ChatMessage({
       if (data.translation) {
         setTranslatedText(data.translation);
         setShowTranslation(true);
+      } else {
+        setTranslateError(data.error ?? 'Translation failed');
       }
     } catch (err) {
       console.error('Translation failed', err);
+      setTranslateError('Gagal menerjemahkan. Coba lagi.');
     } finally {
       setIsTranslating(false);
     }
@@ -129,15 +134,30 @@ export function ChatMessage({
             <button
               onClick={handleTranslate}
               disabled={isTranslating}
-              className={`p-1.5 rounded-lg border transition-colors shadow-sm disabled:opacity-50 ${
-                showTranslation
+              className={`relative p-1.5 rounded-lg border transition-colors shadow-sm disabled:opacity-50 ${
+                translateError
+                  ? 'bg-red-950/60 border-red-800 text-red-400 hover:bg-red-900'
+                  : showTranslation
                   ? 'bg-emerald-950/60 border-emerald-800 text-emerald-400 hover:bg-emerald-900'
                   : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
               }`}
-              title={showTranslation ? 'Tampilkan Teks Asli (English)' : 'Terjemahkan ke Bahasa Indonesia'}
+              title={translateError ?? (showTranslation ? 'Tampilkan Teks Asli (English)' : 'Terjemahkan ke Bahasa Indonesia')}
             >
-              <Translate size={14} weight="bold" className={isTranslating ? 'animate-spin' : ''} />
+              <Translate size={14} weight="bold" />
+              {isTranslating && (
+                <SpinnerGap
+                  size={14}
+                  className="absolute -right-1 -top-1 animate-spin text-cyan-400 drop-shadow"
+                  aria-hidden="true"
+                />
+              )}
             </button>
+            {isTranslating && (
+              <span className="text-[10px] text-purple-400/80 font-mono animate-pulse">Translating…</span>
+            )}
+            {!isTranslating && translateError && (
+              <span className="text-[10px] text-red-400/90 font-mono">{translateError}</span>
+            )}
 
             {onRegenerate && (
               <button

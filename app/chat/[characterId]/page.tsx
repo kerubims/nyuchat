@@ -253,6 +253,21 @@ export default function DedicatedChatRoom() {
     navigator.clipboard.writeText(fullExport);
   }, [messages, character, activeSessionId]);
 
+  const handleCopyFacts = useCallback(async () => {
+    if (!activeSessionId) return;
+    try {
+      const res = await fetch(`/api/sessions/${activeSessionId}/facts`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const facts: Fact[] = data.facts ?? [];
+      const lines = facts.map((f) => `- ${f.subject} ${f.predicate} ${f.object}`);
+      const fullExport = `=== INDEXED FACTS DEBUG ===\nSession: ${activeSessionId}\nCharacter: ${character?.name}\nTime: ${new Date().toLocaleString()}\nCount: ${facts.length}\n\n${facts.length ? lines.join('\n') : '(none indexed)'}\n\n=== GLOBAL SUMMARY ===\n${data.global_summary ?? '(none)'}\n\n=== CURRENT STATE ===\n${data.current_state ?? '(none)'}`;
+      await navigator.clipboard.writeText(fullExport);
+    } catch (err) {
+      console.error('Copy facts failed', err);
+    }
+  }, [activeSessionId, character]);
+
   const handleSendMessage = async (text: string) => {
     if (!activeSessionId || !text.trim() || streaming) return;
 
@@ -591,6 +606,7 @@ export default function DedicatedChatRoom() {
               onOpenTokenModal={() => setShowTokenModal(true)}
               onOpenStoryJournal={() => setShowStoryModal(true)}
               onCopy20Chats={handleCopy20Chats}
+              onCopyFacts={handleCopyFacts}
               editingMessageId={editingMessageId}
               onCancelEdit={handleCancelEdit}
             />

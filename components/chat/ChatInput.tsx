@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { PaperPlaneRight, Lightbulb, Translate, BookOpen, Coins, Copy, Check } from '@phosphor-icons/react';
+import { PaperPlaneRight, Lightbulb, Translate, BookOpen, Coins, Copy, Check, Database, SpinnerGap } from '@phosphor-icons/react';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -12,6 +12,7 @@ interface ChatInputProps {
   onOpenTokenModal?: () => void;
   onOpenStoryJournal?: () => void;
   onCopy20Chats?: () => void;
+  onCopyFacts?: () => void;
   editingMessageId?: string | null;
   onCancelEdit?: () => void;
 }
@@ -25,12 +26,15 @@ export function ChatInput({
   onOpenTokenModal,
   onOpenStoryJournal,
   onCopy20Chats,
+  onCopyFacts,
   editingMessageId,
   onCancelEdit,
 }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [isTranslatingInput, setIsTranslatingInput] = useState(false);
   const [copied20, setCopied20] = useState(false);
+  const [copiedFacts, setCopiedFacts] = useState(false);
+  const [translateInputError, setTranslateInputError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea
@@ -65,6 +69,7 @@ export function ChatInput({
   const handleTranslateInput = useCallback(async () => {
     if (!input.trim() || isStreaming || isTranslatingInput) return;
     setIsTranslatingInput(true);
+    setTranslateInputError(null);
     try {
       const res = await fetch('/api/translate', {
         method: 'POST',
@@ -74,9 +79,12 @@ export function ChatInput({
       const data = await res.json();
       if (data.translation) {
         setInput(data.translation);
+      } else {
+        setTranslateInputError(data.error ?? 'Translation failed');
       }
     } catch (err) {
       console.error('Translation failed', err);
+      setTranslateInputError('Gagal menerjemahkan. Coba lagi.');
     } finally {
       setIsTranslatingInput(false);
     }
@@ -87,6 +95,14 @@ export function ChatInput({
       onCopy20Chats();
       setCopied20(true);
       setTimeout(() => setCopied20(false), 2000);
+    }
+  };
+
+  const handleCopyFacts = () => {
+    if (onCopyFacts) {
+      onCopyFacts();
+      setCopiedFacts(true);
+      setTimeout(() => setCopiedFacts(false), 2000);
     }
   };
 
@@ -139,12 +155,26 @@ export function ChatInput({
           type="button"
           onClick={handleTranslateInput}
           disabled={isTranslatingInput || !input.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 transition-colors disabled:opacity-40 shrink-0"
-          title="Translate typed text from ID to EN"
+          className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors shrink-0 disabled:opacity-40 ${
+            translateInputError
+              ? 'bg-red-950/60 border border-red-800 text-red-300 hover:bg-red-900'
+              : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800'
+          }`}
+          title={translateInputError ?? 'Translate typed text from ID to EN'}
         >
-          <Translate size={14} className={isTranslatingInput ? 'animate-spin' : 'text-cyan-400'} />
+          <Translate size={14} className={isTranslatingInput ? 'text-cyan-400/40' : 'text-cyan-400'} />
+          {isTranslatingInput && (
+            <SpinnerGap
+              size={14}
+              className="absolute -right-1 -top-1 animate-spin text-cyan-400 drop-shadow"
+              aria-hidden="true"
+            />
+          )}
           <span>{isTranslatingInput ? 'Translating...' : 'Translate to EN'}</span>
         </button>
+        {translateInputError && !isTranslatingInput && (
+          <span className="text-[10px] text-red-400/90 font-mono">{translateInputError}</span>
+        )}
 
         {onOpenTokenModal && (
           <button
@@ -166,6 +196,18 @@ export function ChatInput({
           >
             {copied20 ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} className="text-purple-400" />}
             <span>{copied20 ? 'Copied 20!' : 'Copy 20 Chats'}</span>
+          </button>
+        )}
+
+        {onCopyFacts && (
+          <button
+            type="button"
+            onClick={handleCopyFacts}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-zinc-900 border border-zinc-800 text-cyan-300 hover:text-cyan-100 hover:bg-cyan-950/60 transition-colors shrink-0"
+            title="Copy indexed RAG facts of this session for debugging"
+          >
+            {copiedFacts ? <Check size={14} className="text-emerald-400" /> : <Database size={14} className="text-cyan-400" />}
+            <span>{copiedFacts ? 'Copied Facts!' : 'Copy Facts'}</span>
           </button>
         )}
       </div>
