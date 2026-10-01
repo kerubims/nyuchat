@@ -177,13 +177,13 @@ export async function compressSummary(
     .join('\n\n');
 
   const sys = prevSummary
-    ? `You maintain a running summary of a roleplay. Update the existing summary with the new exchange. Keep it under 120 words. Preserve names, relationships, locations, key decisions, and the emotional state of the characters. Plain prose, no headers.`
-    : `Summarize this roleplay opening in under 120 words. Preserve names, relationships, locations, key decisions, and the emotional state of the characters. Plain prose, no headers.`;
+    ? `You maintain a running summary of a roleplay. Update the existing summary with the new exchange. Keep it under 250 words. Preserve names, relationships, locations, key decisions, and the emotional state of the characters. Plain prose, no headers.`
+    : `Summarize this roleplay opening in under 250 words. Preserve names, relationships, locations, key decisions, and the emotional state of the characters. Plain prose, no headers.`;
 
   const txt = await callStheno(
     `${sys}\n\n${prevSummary ? `EXISTING SUMMARY:\n${prevSummary}\n` : ''}NEW EXCHANGE:\n${transcript}\n\nUpdated summary:`,
     0.3,
-    500
+    600
   );
   return txt || prevSummary || '';
 }
