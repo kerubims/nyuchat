@@ -105,6 +105,7 @@ export default function DedicatedChatRoom() {
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [showRagModal, setShowRagModal] = useState(false);
   const [showStoryModal, setShowStoryModal] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   const [ragState, setRagState] = useState<{
     global_summary: string | null;
@@ -284,13 +285,14 @@ export default function DedicatedChatRoom() {
         });
         if (!res.ok) {
           const e = await res.json().catch(() => null);
-          console.error('Branch failed:', e?.error ?? res.status);
+          setChatError(e?.error ?? `Branch failed (status ${res.status}).`);
           return;
         }
         const { branch } = await res.json();
         await loadSessions();
         await openSession(branch.id);
       } catch (err) {
+        setChatError('Branch failed unexpectedly. Please try again.');
         console.error('Branch failed', err);
       }
     },
@@ -319,6 +321,7 @@ export default function DedicatedChatRoom() {
       }
       return [...base, { id: newUserMsgId, sender: 'user', content }];
     });
+    setChatError(null);
     setStreaming(true);
 
     const res = await fetch('/api/chat', {
@@ -334,6 +337,8 @@ export default function DedicatedChatRoom() {
     });
 
     if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      setChatError(err?.error ?? `Server returned ${res.status}. Your message is saved — try again.`);
       setStreaming(false);
       return;
     }
@@ -412,6 +417,7 @@ export default function DedicatedChatRoom() {
     const original = messages[targetIndex];
 
     const newAssistantId = safeUUID();
+    setChatError(null);
     setStreaming(true);
 
     // Atomically replace target assistant message with a new empty streaming message
@@ -435,12 +441,14 @@ export default function DedicatedChatRoom() {
     if (!res.ok) {
       // Restore original message; the server rejected the regenerate request
       // (e.g. no preceding user message) so nothing was deleted server-side.
+      const err = await res.json().catch(() => null);
       setMessages((m) => {
         const idx = m.findIndex((x) => x.id === newAssistantId);
         if (idx === -1) return m;
         const restored = { ...original, isStreaming: false, isRegenerating: false };
         return [...m.slice(0, idx), restored, ...m.slice(idx + 1)];
       });
+      setChatError(err?.error ?? `Regenerate failed (status ${res.status}).`);
       setStreaming(false);
       return;
     }
@@ -637,6 +645,19 @@ export default function DedicatedChatRoom() {
         {/* Input Composer */}
         <footer className="border-t border-zinc-900 bg-zinc-950 p-4 shrink-0 z-10">
           <div className="max-w-3xl mx-auto">
+            {chatError && (
+              <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-800 bg-red-950/60 px-3 py-2 text-sm text-red-200">
+                <span className="flex-1">{chatError}</span>
+                <button
+                  type="button"
+                  onClick={() => setChatError(null)}
+                  className="text-red-400 hover:text-red-200 transition-colors shrink-0"
+                  aria-label="Dismiss error"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             <ChatInput
               onSend={handleSendMessage}
               disabled={!activeSessionId}
