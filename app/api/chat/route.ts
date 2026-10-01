@@ -236,7 +236,8 @@ export async function POST(req: Request) {
           const trimmed = line.trim();
           if (!trimmed || trimmed.startsWith(':')) continue;
           if (trimmed === 'data: [DONE]') {
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            // Deferred: emitted after the final trimmed text below so the
+            // client applies the sentence-truncation replacement first.
             continue;
           }
           if (!trimmed.startsWith('data: ')) continue;
@@ -270,8 +271,6 @@ export async function POST(req: Request) {
           const last = Math.max(t.lastIndexOf('.'), t.lastIndexOf('!'), t.lastIndexOf('?'));
           if (last <= 0) return t;
           let cut = t.slice(0, last + 1);
-          // An unpaired asterisk means an action tag was split mid-way; drop it
-          // only when dialogue still remains, otherwise keep the sentence.
           const opens = (cut.match(/\*/g) ?? []).length;
           if (opens % 2 !== 0) {
             const star = cut.lastIndexOf('*');
@@ -326,8 +325,13 @@ export async function POST(req: Request) {
             }
           }).catch(console.error);
         }
+
+        // Replace the raw streamed text with the sentence-trimmed version so what
+        // the user sees matches what is stored.
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ final: cleaned })}\n\n`));
       }
 
+      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
       controller.close();
     },
   });

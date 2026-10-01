@@ -360,12 +360,16 @@ export default function DedicatedChatRoom() {
           try {
             const j: {
               token?: string;
+              final?: string;
               messageId?: string;
               error?: string;
               usage?: { prompt_tokens: number; completion_tokens: number; cost_usd: number };
             } = JSON.parse(payload);
             if (j.error) {
               setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false } : x)));
+            } else if (j.final) {
+              acc = j.final;
+              setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: j.final! } : x)));
             } else if (j.messageId) {
               const targetId = j.messageId;
               setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, id: targetId } : x)));
@@ -460,12 +464,16 @@ export default function DedicatedChatRoom() {
           try {
             const j: {
               token?: string;
+              final?: string;
               messageId?: string;
               error?: string;
               usage?: { prompt_tokens: number; completion_tokens: number; cost_usd: number };
             } = JSON.parse(payload);
             if (j.error) {
               setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: acc + `\n\n[error: ${j.error}]`, isStreaming: false, isRegenerating: false } : x)));
+            } else if (j.final) {
+              acc = j.final;
+              setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, content: j.final! } : x)));
             } else if (j.messageId) {
               const targetId = j.messageId;
               setMessages((m) => m.map((x) => (x.id === currentId ? { ...x, id: targetId } : x)));
