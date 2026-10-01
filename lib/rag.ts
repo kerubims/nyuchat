@@ -177,8 +177,22 @@ export async function compressSummary(
     .join('\n\n');
 
   const sys = prevSummary
-    ? `You maintain a running summary of a roleplay. Update the existing summary with the new exchange. Keep it under 250 words. Preserve names, relationships, locations, key decisions, and the emotional state of the characters. Plain prose, no headers. Preserve concrete scene detail — clothing, physical positions, what characters are touching or holding, time of day, and named objects — because the narration refers back to them. Only compress dialogue that repeats a point already covered.`
-    : `Summarize this roleplay opening in under 250 words. Preserve names, relationships, locations, key decisions, and the emotional state of the characters. Plain prose, no headers. Preserve concrete scene detail — clothing, physical positions, what characters are touching or holding, time of day, and named objects — because the narration refers back to them. Only compress dialogue that repeats a point already covered.`;
+    ? `You maintain a running summary of a roleplay. Update it with the new exchange. Keep it under 250 words. Plain prose, no headers.
+
+Follow this priority when deciding what to keep, in order:
+1. NAMES and RELATIONSHIPS — who is present and how they connect.
+2. CONCRETE SCENE DETAIL — clothing, physical positions, what characters are touching or holding, time of day, named objects. Narration later refers back to these anchors, so losing them creates continuity errors.
+3. KEY DECISIONS and the emotional state of each character.
+
+Only compress dialogue that repeats a point already covered.`
+    : `Summarize this roleplay opening in under 250 words. Plain prose, no headers.
+
+Follow this priority when deciding what to keep, in order:
+1. NAMES and RELATIONSHIPS — who is present and how they connect.
+2. CONCRETE SCENE DETAIL — clothing, physical positions, what characters are touching or holding, time of day, named objects. Narration later refers back to these anchors, so losing them creates continuity errors.
+3. KEY DECISIONS and the emotional state of each character.
+
+Only compress dialogue that repeats a point already covered.`;
 
   const txt = await callStheno(
     `${sys}\n\n${prevSummary ? `EXISTING SUMMARY:\n${prevSummary}\n` : ''}NEW EXCHANGE:\n${transcript}\n\nUpdated summary:`,
