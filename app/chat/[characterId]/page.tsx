@@ -324,17 +324,24 @@ export default function DedicatedChatRoom() {
     setChatError(null);
     setStreaming(true);
 
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: activeSessionId,
-        message: content,
-        temperature,
-        editMessageId: currentEditId || undefined,
-        clientMsgId: newUserMsgId,
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: activeSessionId,
+          message: content,
+          temperature,
+          editMessageId: currentEditId || undefined,
+          clientMsgId: newUserMsgId,
+        }),
+      });
+    } catch {
+      setChatError('Connection failed. Your message is saved — try again.');
+      setStreaming(false);
+      return;
+    }
 
     if (!res.ok) {
       const err = await res.json().catch(() => null);
