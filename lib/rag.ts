@@ -220,12 +220,29 @@ export async function assemble(args: {
   // Slicing from message zero fed the entire history into compressSummary every
   // request, blowing past Stheno's 8192-token ceiling on long sessions and
   // stalling the checkpoint forever.
-  const cpIdx = session.summary_upto_msg_id
-    ? all.findIndex((m) => m.id === session.summary_upto_msg_id)
-    : -1;
-  const start = cpIdx >= 0 ? cpIdx + 1 : 0;
+  let start = 0;
+  let orphanedCp = false;
+  if (session.summary_upto_msg_id) {
+    const cpIdx = all.findIndex((m) => m.id === session.summary_upto_msg_id);
+    if (cpIdx >= 0) {
+      start = cpIdx + 1;
+    } else {
+      // Orphaned checkpoint: branch copied the parent's summary_upto_msg_id but
+      // forked the messages with fresh ids. The carried summary already covers
+      // the forked history, so re-compressing it all would just overflow. Rebase
+      // the checkpoint at the head of the recent window and let new messages
+      // accumulate normally from here.
+      orphanedCp = true;
+      start = beyond;
+    }
+  }
   const old = all.slice(start, beyond);
-  if (beyond > start && old.length >= SUMMARY_EVERY * 2) {
+  if (orphanedCp) {
+    await prisma.chatSession.update({
+      where: { id: args.sessionId },
+      data: { summary_upto_msg_id: all[beyond - 1]?.id ?? null },
+    });
+  } else if (beyond > start && old.length >= SUMMARY_EVERY * 2) {
     summary = await compressSummary(args.sessionId, old, session.global_summary);
     await prisma.chatSession.update({
       where: { id: args.sessionId },

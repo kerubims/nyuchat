@@ -59,6 +59,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     where chat_session_id = ${id} and created_at <= ${pivot.created_at}
     order by created_at, id`;
 
+  // Re-point the summary checkpoint at the fork's own copy. Messages get fresh
+  // ids, so the parent's summary_upto_msg_id does not exist in this session and
+  // assemble() would slice from message zero instead, blowing past the context
+  // ceiling once the branch grows past ~28 messages.
+  const forkedTail = await prisma.chatMessage.findFirst({
+    where: { chat_session_id: branch.id },
+    orderBy: { created_at: 'desc' },
+    select: { id: true },
+  });
+  if (forkedTail) {
+    await prisma.chatSession.update({
+      where: { id: branch.id },
+      data: { summary_upto_msg_id: forkedTail.id },
+    });
+  }
+
   // Copy the session's own facts, embeddings included — no re-embed cost.
   await prisma.$executeRaw`
     insert into user_facts (id, user_id, character_id, session_id, subject, predicate, object, raw_fact, embedding, created_at)
