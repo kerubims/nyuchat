@@ -260,7 +260,26 @@ export async function POST(req: Request) {
       }
 
       if (full.trim()) {
-        const cleaned = full;
+        // Truncate at the last complete sentence so a reply hitting the token
+        // ceiling never leaves a fragment hanging ("*Her touch grows"). A
+        // trailing partial action block gets dropped to keep the 80:20 dialogue
+        // ratio intact instead of leaving narration dominant.
+        const cleaned = (() => {
+          const t = full.trimEnd();
+          if (/[.!?*'"]$/.test(t)) return t;
+          const last = Math.max(t.lastIndexOf('.'), t.lastIndexOf('!'), t.lastIndexOf('?'));
+          if (last <= 0) return t;
+          let cut = t.slice(0, last + 1);
+          // An unpaired asterisk means an action tag was split mid-way; drop it
+          // only when dialogue still remains, otherwise keep the sentence.
+          const opens = (cut.match(/\*/g) ?? []).length;
+          if (opens % 2 !== 0) {
+            const star = cut.lastIndexOf('*');
+            const before = cut.slice(0, star).trimEnd();
+            if (before.length > 0 && /[.!?]$/.test(before)) cut = before;
+          }
+          return cut;
+        })();
         const savedMsg = await prisma.chatMessage.create({
           data: {
             chat_session_id: sessionId,
